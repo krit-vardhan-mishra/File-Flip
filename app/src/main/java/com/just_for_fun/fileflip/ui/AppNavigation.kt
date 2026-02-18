@@ -11,12 +11,10 @@ import com.just_for_fun.fileflip.ui.screens.DashboardScreen
 import com.just_for_fun.fileflip.ui.screens.DraftsPublishedScreen
 import com.just_for_fun.fileflip.ui.screens.EditorScreen
 import com.just_for_fun.fileflip.ui.screens.FileExplorerScreen
-import com.just_for_fun.fileflip.ui.screens.PermissionsScreen
+import com.just_for_fun.fileflip.ui.screens.OnboardingScreen
 import com.just_for_fun.fileflip.ui.screens.PreviewScreen
 import com.just_for_fun.fileflip.ui.screens.ProScreen
 import com.just_for_fun.fileflip.ui.screens.SettingsScreen
-import com.just_for_fun.fileflip.ui.screens.TutorialScreen
-import com.just_for_fun.fileflip.ui.screens.WelcomeScreen
 
 @Composable
 fun AppNavigation(
@@ -53,8 +51,7 @@ fun AppNavigation(
     }
 
     NavHost(navController = navController, startDestination = startDestination) {
-        composable("onboarding") { WelcomeScreen(navController) }
-        composable("permissions") { PermissionsScreen(navController) }
+        composable("onboarding") { OnboardingScreen(navController) }
         composable("dashboard") { DashboardScreen(navController) }
         composable(
             route = "editor/{filePath}",
@@ -68,12 +65,14 @@ fun AppNavigation(
             route = "preview/{filePath}",
             arguments = listOf(androidx.navigation.navArgument("filePath") { type = androidx.navigation.NavType.StringType })
         ) { backStackEntry ->
-             val encodedFilePath = backStackEntry.arguments?.getString("filePath") ?: return@composable
-             val filePath = java.net.URLDecoder.decode(encodedFilePath, "UTF-8")
-             PreviewScreen(navController, filePath)
+            val encodedFilePath = backStackEntry.arguments?.getString("filePath") ?: return@composable
+            val filePath = java.net.URLDecoder.decode(encodedFilePath, "UTF-8")
+            PreviewScreen(navController, filePath)
         }
         composable("settings") { SettingsScreen(navController) }
-        composable("tutorial") { TutorialScreen(navController) }
+
+        // Removed standalone "tutorial" route
+
         composable(
             "file_explorer?tab={tab}",
             arguments = listOf(
