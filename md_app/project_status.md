@@ -61,22 +61,41 @@
 - [x] ViewModel for UI state management
 - [x] Kotlin Coroutines for asynchronous operations
 
+## Recently Completed Features ✅ (Session Update)
+
+### External File Opening (Fixed)
+- [x] Handle content:// URIs from external apps (WhatsApp, Gmail, etc.)
+- [x] Copy content:// URI files to app storage before processing
+- [x] Added ACTION_SEND intent filter for receiving shared files
+- [x] Added text/x-markdown and application/octet-stream MIME support
+- [x] SingleTask launch mode for proper intent handling
+- [x] FileProvider configuration for sharing files out
+
+### Markdown Table Preview (Fixed)
+- [x] Replaced Markwon-based MD→HTML with Flexmark parser/renderer
+- [x] Proper `<table>` HTML rendering with TablesExtension
+- [x] Horizontal scrolling for wide tables (overflow-x: auto)
+- [x] Dark-themed CSS with proper table borders and styling
+- [x] JavaScript injection to wrap tables in scrollable containers
+
+### Editor TODO Items (Implemented)
+- [x] JSON validation with error/success dialog
+- [x] YAML validation with SnakeYAML error display
+- [x] XML validation with DocumentBuilderFactory error display
+- [x] CSV auto-formatting (column alignment with padding)
+- [x] Word count dialog (words, characters, lines, paragraphs)
+- [x] Line numbers toggle (add/remove N: prefix)
+- [x] Find & Replace dialog with regex and case sensitivity support
+- [x] Share file functionality via FileProvider + ACTION_SEND
+
+### Already Implemented (Verified)
+- [x] Undo/Redo functionality (per-file stacks in EditorViewModel)
+- [x] Auto-save with 3-second debounce (EditorViewModel)
+- [x] Hamburger side menu / drawer navigation (EditorScreen)
+
 ## Pending Features ❌
 
-### Editor Enhancements
-- [ ] Undo/Redo functionality (mentioned in 20+ TODO comments)
-- [ ] JSON validation with error display
-- [ ] YAML validation with error display
-- [ ] XML validation with error display
-- [ ] CSV formatting implementation
-- [ ] Word count dialog for text files
-- [ ] Line numbers toggle for editor display
-- [ ] Find & Replace dialog with regex support
-- [ ] Auto-save functionality to prevent data loss
-- [ ] Search and replace across all open files
-
 ### UI/UX Improvements
-- [ ] Hamburger side menu/sidebar navigation
 - [ ] Light/dark mode toggle in settings (currently only dark)
 - [ ] Accessibility features (screen reader support, larger touch targets)
 - [ ] Multi-language support (localization)
@@ -113,15 +132,15 @@
 ## TODO Items from Codebase
 
 ### EditorScreen.kt
-- [ ] Implement undo functionality (multiple locations)
-- [ ] Implement redo functionality (multiple locations)
-- [ ] Show validation result for JSON
-- [ ] Implement YAML validation
-- [ ] Implement XML validation
-- [ ] Implement CSV formatting
-- [ ] Show word count dialog
-- [ ] Toggle line numbers display
-- [ ] Show find/replace dialog
+- [x] Implement undo functionality — Already in EditorViewModel
+- [x] Implement redo functionality — Already in EditorViewModel
+- [x] Show validation result for JSON — Dialog with success/error
+- [x] Implement YAML validation — SnakeYAML parser validation
+- [x] Implement XML validation — DocumentBuilderFactory validation
+- [x] Implement CSV formatting — Auto-align columns
+- [x] Show word count dialog — Words, chars, lines, paragraphs
+- [x] Toggle line numbers display — Add/remove N: prefix
+- [x] Show find/replace dialog — Regex + case sensitivity support
 
 ### DashboardScreen.kt
 - [ ] Open GitHub Link

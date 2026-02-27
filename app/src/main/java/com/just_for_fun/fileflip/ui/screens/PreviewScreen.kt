@@ -282,12 +282,31 @@ fun PreviewScreen(navController: NavController, filePath: String) {
         }
     }
 
-    // Markdown Parser
-    val markwon = remember {
-        io.noties.markwon.Markwon.builder(context)
-            .usePlugin(io.noties.markwon.html.HtmlPlugin.create())
-            .usePlugin(io.noties.markwon.ext.tables.TablePlugin.create(context))
-            .build()
+    // Markdown Parser - not needed for WebView preview, we use Flexmark for direct HTML output
+    // (Markwon kept for potential native rendering elsewhere)
+
+    // Flexmark parser for proper Markdown → HTML conversion (supports tables, task lists, etc.)
+    val flexmarkParser = remember {
+        val options = com.vladsch.flexmark.util.data.MutableDataSet()
+        options.set(
+            com.vladsch.flexmark.parser.Parser.EXTENSIONS,
+            listOf(
+                com.vladsch.flexmark.ext.tables.TablesExtension.create(),
+                com.vladsch.flexmark.ext.gfm.strikethrough.StrikethroughExtension.create(),
+                com.vladsch.flexmark.ext.gfm.tasklist.TaskListExtension.create(),
+                com.vladsch.flexmark.ext.autolink.AutolinkExtension.create()
+            )
+        )
+        // Table rendering options
+        options.set(com.vladsch.flexmark.ext.tables.TablesExtension.COLUMN_SPANS, true)
+        options.set(com.vladsch.flexmark.ext.tables.TablesExtension.HEADER_SEPARATOR_COLUMN_MATCH, true)
+        options.set(com.vladsch.flexmark.ext.tables.TablesExtension.WITH_CAPTION, false)
+        options.set(com.vladsch.flexmark.ext.tables.TablesExtension.APPEND_MISSING_COLUMNS, true)
+        options.set(com.vladsch.flexmark.ext.tables.TablesExtension.DISCARD_EXTRA_COLUMNS, true)
+
+        val parser = com.vladsch.flexmark.parser.Parser.builder(options).build()
+        val renderer = com.vladsch.flexmark.html.HtmlRenderer.builder(options).build()
+        Pair(parser, renderer)
     }
 
     // Export / Print Logic
@@ -300,13 +319,52 @@ fun PreviewScreen(navController: NavController, filePath: String) {
             val printAdapter = webView.createPrintDocumentAdapter(jobName)
             printManager.print(jobName, printAdapter, null)
         } else {
-            // For other types, create a temporary WebView to render the "pretty" version for printing
+            // For other types, create a temporary WebView to render with professional styling
             val tempWebView = WebView(context)
-            val htmlContent = when(fileExtension) {
-                "json", "xml", "yaml", "yml" -> "<pre>$content</pre>"
-                "csv" -> "<html><body><pre>$content</pre></body></html>" // Simplified for print
-                else -> "<pre>$content</pre>"
-            }
+            val escapedContent = content
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            val htmlContent = """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            font-size: 11pt;
+                            line-height: 1.5;
+                            color: #24292f;
+                            padding: 20px;
+                            max-width: 100%;
+                        }
+                        pre {
+                            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+                            font-size: 9pt;
+                            line-height: 1.4;
+                            background-color: #f6f8fa;
+                            padding: 16px;
+                            border-radius: 6px;
+                            border: 1px solid #d0d7de;
+                            overflow-x: hidden;
+                            white-space: pre-wrap;
+                            word-wrap: break-word;
+                            tab-size: 4;
+                        }
+                        @media print {
+                            body { padding: 0; }
+                            pre {
+                                page-break-inside: avoid;
+                                white-space: pre-wrap;
+                                word-wrap: break-word;
+                            }
+                        }
+                    </style>
+                </head>
+                <body><pre>$escapedContent</pre></body>
+                </html>
+            """.trimIndent()
             tempWebView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
             tempWebView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -431,25 +489,202 @@ fun PreviewScreen(navController: NavController, filePath: String) {
                         )
                     }
                     "md", "markdown" -> {
-                        // Render Markdown with Custom Dark CSS
+                        // Render Markdown with Flexmark for proper table support
                         val htmlContent = remember(content) {
-                            val spanned = markwon.toMarkdown(content)
-                            val body = android.text.Html.toHtml(spanned)
+                            val (parser, renderer) = flexmarkParser
+                            val document = parser.parse(content)
+                            val body = renderer.render(document)
                             """
                         <!DOCTYPE html>
                         <html>
                         <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
                             <style>
-                                body { background-color: #1A2830; color: #F1F5F9; font-family: sans-serif; padding: 16px; line-height: 1.6; }
-                                a { color: #0DA6F2; }
-                                code { background-color: #101C22; color: #98C379; padding: 2px 4px; border-radius: 4px; }
-                                pre { background-color: #101C22; padding: 12px; border-radius: 8px; overflow-x: auto; }
-                                blockquote { border-left: 4px solid #0DA6F2; padding-left: 12px; color: #94A3B8; }
-                                table { border-collapse: collapse; width: 100%; }
-                                th, td { border: 1px solid #333; padding: 8px; text-align: left; }
-                                th { background-color: #101C22; }
-                                img { max-width: 100%; height: auto; }
+                                body {
+                                    background-color: #1A2830;
+                                    color: #F1F5F9;
+                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                    padding: 16px;
+                                    line-height: 1.7;
+                                    word-wrap: break-word;
+                                    overflow-wrap: break-word;
+                                }
+                                h1, h2, h3, h4, h5, h6 {
+                                    color: #F1F5F9;
+                                    border-bottom: 1px solid #2D3748;
+                                    padding-bottom: 0.3em;
+                                    margin-top: 1.5em;
+                                    margin-bottom: 0.5em;
+                                }
+                                h1 { font-size: 2em; }
+                                h2 { font-size: 1.5em; }
+                                h3 { font-size: 1.25em; }
+                                a { color: #0DA6F2; text-decoration: none; }
+                                a:hover { text-decoration: underline; }
+                                code {
+                                    background-color: #101C22;
+                                    color: #98C379;
+                                    padding: 2px 6px;
+                                    border-radius: 4px;
+                                    font-family: 'Courier New', monospace;
+                                    font-size: 0.9em;
+                                }
+                                pre {
+                                    background-color: #101C22;
+                                    padding: 16px;
+                                    border-radius: 8px;
+                                    overflow-x: auto;
+                                    border: 1px solid #2D3748;
+                                }
+                                pre code {
+                                    background: none;
+                                    padding: 0;
+                                    border-radius: 0;
+                                }
+                                blockquote {
+                                    border-left: 4px solid #0DA6F2;
+                                    padding-left: 16px;
+                                    color: #94A3B8;
+                                    margin: 1em 0;
+                                    background-color: rgba(13, 166, 242, 0.05);
+                                    padding: 8px 16px;
+                                    border-radius: 0 8px 8px 0;
+                                }
+                                /* Table wrapper for horizontal scroll */
+                                .table-wrapper {
+                                    overflow-x: auto;
+                                    -webkit-overflow-scrolling: touch;
+                                    margin: 1em 0;
+                                    border-radius: 8px;
+                                    border: 1px solid #2D3748;
+                                }
+                                table {
+                                    border-collapse: collapse;
+                                    width: max-content;
+                                    min-width: 100%;
+                                    font-size: 0.95em;
+                                }
+                                th, td {
+                                    border: 1px solid #2D3748;
+                                    padding: 10px 14px;
+                                    text-align: left;
+                                    white-space: nowrap;
+                                }
+                                th {
+                                    background-color: #101C22;
+                                    font-weight: 600;
+                                    color: #0DA6F2;
+                                    position: sticky;
+                                    top: 0;
+                                }
+                                tr:nth-child(even) {
+                                    background-color: rgba(26, 40, 48, 0.5);
+                                }
+                                tr:hover {
+                                    background-color: rgba(13, 166, 242, 0.1);
+                                }
+                                img { max-width: 100%; height: auto; border-radius: 8px; }
+                                hr {
+                                    border: none;
+                                    border-top: 1px solid #2D3748;
+                                    margin: 2em 0;
+                                }
+                                ul, ol {
+                                    padding-left: 2em;
+                                }
+                                li {
+                                    margin: 0.3em 0;
+                                }
+                                /* Task list styling */
+                                .task-list-item {
+                                    list-style-type: none;
+                                    margin-left: -1.5em;
+                                }
+                                .task-list-item input[type="checkbox"] {
+                                    margin-right: 0.5em;
+                                }
+                                del { color: #94A3B8; }
+                                mark { background-color: #FF9F1C; color: #101C22; padding: 2px 4px; border-radius: 3px; }
+                                /* Print / PDF Optimization */
+                                @media print {
+                                    body {
+                                        background-color: #ffffff !important;
+                                        color: #24292f !important;
+                                        font-size: 11pt;
+                                        padding: 0 !important;
+                                        max-width: none !important;
+                                    }
+                                    h1, h2, h3, h4, h5, h6 {
+                                        color: #24292f !important;
+                                        border-bottom-color: #d0d7de !important;
+                                        page-break-after: avoid;
+                                        page-break-inside: avoid;
+                                    }
+                                    h1 { font-size: 20pt; }
+                                    h2 { font-size: 16pt; }
+                                    h3 { font-size: 13pt; }
+                                    a { color: #0969da !important; }
+                                    code {
+                                        background-color: #f6f8fa !important;
+                                        color: #24292f !important;
+                                        font-size: 9pt;
+                                    }
+                                    pre {
+                                        background-color: #f6f8fa !important;
+                                        border: 1px solid #d0d7de !important;
+                                        white-space: pre;
+                                        word-wrap: normal;
+                                        page-break-inside: avoid;
+                                        font-size: 9px;
+                                        overflow: hidden;
+                                    }
+                                    blockquote {
+                                        border-left-color: #d0d7de !important;
+                                        color: #57606a !important;
+                                        background-color: transparent !important;
+                                    }
+                                    table {
+                                        page-break-inside: avoid;
+                                        font-size: 10pt;
+                                    }
+                                    th {
+                                        background-color: #f6f8fa !important;
+                                        color: #24292f !important;
+                                    }
+                                    th, td {
+                                        border-color: #d0d7de !important;
+                                        color: #24292f !important;
+                                    }
+                                    tr:nth-child(even) {
+                                        background-color: #f6f8fa !important;
+                                    }
+                                    tr:hover {
+                                        background-color: transparent !important;
+                                    }
+                                    .table-wrapper {
+                                        border-color: #d0d7de !important;
+                                        overflow: visible !important;
+                                    }
+                                    tr { page-break-inside: avoid; }
+                                    img { page-break-inside: avoid; page-break-after: avoid; }
+                                    ul, ol { page-break-inside: avoid; }
+                                    hr { border-top-color: #d0d7de !important; }
+                                }
                             </style>
+                            <script>
+                                // Wrap all tables in a scrollable div after page loads
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var tables = document.querySelectorAll('table');
+                                    tables.forEach(function(table) {
+                                        if (!table.parentElement.classList.contains('table-wrapper')) {
+                                            var wrapper = document.createElement('div');
+                                            wrapper.className = 'table-wrapper';
+                                            table.parentNode.insertBefore(wrapper, table);
+                                            wrapper.appendChild(table);
+                                        }
+                                    });
+                                });
+                            </script>
                         </head>
                         <body>$body</body>
                         </html>
@@ -459,8 +694,12 @@ fun PreviewScreen(navController: NavController, filePath: String) {
                         AndroidView(
                             factory = { ctx ->
                                 WebView(ctx).apply {
-                                    settings.javaScriptEnabled = false
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    settings.useWideViewPort = true
+                                    settings.loadWithOverviewMode = true
                                     setBackgroundColor(android.graphics.Color.parseColor("#1A2830"))
+                                    webViewClient = WebViewClient()
                                 }
                             },
                             update = { webView ->

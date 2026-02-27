@@ -1,5 +1,6 @@
 package com.just_for_fun.fileflip.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,7 +44,11 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.FindReplace
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.AlertDialog
@@ -80,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -175,6 +181,19 @@ fun EditorScreen(
     // Close file dialog state
     var fileIndexToClose by remember { mutableStateOf<Int?>(null) }
     var showCloseFileDialog by remember { mutableStateOf(false) }
+    
+    // Validation dialog state
+    var showValidationDialog by remember { mutableStateOf(false) }
+    var validationTitle by remember { mutableStateOf("") }
+    var validationMessage by remember { mutableStateOf("") }
+    var validationIsError by remember { mutableStateOf(false) }
+    
+    // Word count dialog state
+    var showWordCountDialog by remember { mutableStateOf(false) }
+    
+    // Search & Replace bottom sheet state
+    var showSearchReplaceSheet by remember { mutableStateOf(false) }
+    var searchReplaceInitialMode by remember { mutableStateOf("search") } // "search" or "replace"
     
     // Menu and drawer states
     var showMenu by remember { mutableStateOf(false) }
@@ -353,6 +372,12 @@ fun EditorScreen(
                         IconButton(onClick = { viewModel.saveFile() }) {
                             Icon(Icons.Default.Save, contentDescription = "Save", tint = PrimaryBlue)
                         }
+                        IconButton(onClick = { 
+                            searchReplaceInitialMode = "search"
+                            showSearchReplaceSheet = true 
+                        }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = TextGray)
+                        }
                         IconButton(onClick = { showMoreOptionsBottomSheet = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = TextGray)
                         }
@@ -441,7 +466,19 @@ fun EditorScreen(
                     val toolbarTools = if (hasSelection) {
                         fileType.getFormattingTools()
                     } else {
-                        fileType.getToolbarTools()
+                        fileType.getToolbarTools(
+                            onShowValidation = { title, message, isError ->
+                                validationTitle = title
+                                validationMessage = message
+                                validationIsError = isError
+                                showValidationDialog = true
+                            },
+                            onShowWordCount = { showWordCountDialog = true },
+                            onShowFindReplace = { 
+                                searchReplaceInitialMode = "replace"
+                                showSearchReplaceSheet = true 
+                            }
+                        )
                     }
 
                     toolbarTools.forEach { tool ->
@@ -683,7 +720,40 @@ fun EditorScreen(
             },
             onShareFile = {
                 showMoreOptionsBottomSheet = false
-                // TODO: Implement share functionality
+                currentFile?.let { file ->
+                    try {
+                        val shareFile = File(file.path)
+                        if (shareFile.exists()) {
+                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                shareFile
+                            )
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = when (file.name.substringAfterLast(".", "").lowercase()) {
+                                    "md", "markdown" -> "text/markdown"
+                                    "json" -> "application/json"
+                                    "xml" -> "application/xml"
+                                    "yaml", "yml" -> "text/yaml"
+                                    "html", "htm" -> "text/html"
+                                    "csv" -> "text/csv"
+                                    else -> "text/plain"
+                                }
+                                putExtra(Intent.EXTRA_STREAM, fileUri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share ${file.name}"))
+                        }
+                    } catch (e: Exception) {
+                        // Fallback: share as plain text
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, content)
+                            putExtra(Intent.EXTRA_SUBJECT, file.name)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share ${file.name}"))
+                    }
+                }
             },
             onPrint = {
                 showMoreOptionsBottomSheet = false
@@ -692,6 +762,81 @@ fun EditorScreen(
                     val encodedPath = java.net.URLEncoder.encode(it.path, "UTF-8")
                     navController.navigate("preview/$encodedPath")
                 }
+            }
+        )
+    }
+
+    // Validation Result Dialog
+    if (showValidationDialog) {
+        AlertDialog(
+            onDismissRequest = { showValidationDialog = false },
+            title = {
+                Text(
+                    validationTitle,
+                    color = if (validationIsError) Color(0xFFF44336) else Color(0xFF4CAF50),
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            text = {
+                Text(
+                    validationMessage,
+                    color = TextGray,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(onClick = { showValidationDialog = false }) {
+                    Text("OK")
+                }
+            },
+            containerColor = SurfaceDark
+        )
+    }
+
+    // Word Count Dialog
+    if (showWordCountDialog) {
+        val wordCount = content.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+        val charCount = content.length
+        val charNoSpaceCount = content.replace(Regex("\\s"), "").length
+        val lineCount = content.lines().size
+        val paragraphCount = content.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }.size
+
+        AlertDialog(
+            onDismissRequest = { showWordCountDialog = false },
+            title = {
+                Text("Word Count", color = TextWhite, fontWeight = FontWeight.SemiBold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WordCountRow("Words", wordCount)
+                    WordCountRow("Characters", charCount)
+                    WordCountRow("Characters (no spaces)", charNoSpaceCount)
+                    WordCountRow("Lines", lineCount)
+                    WordCountRow("Paragraphs", paragraphCount)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showWordCountDialog = false }) {
+                    Text("OK")
+                }
+            },
+            containerColor = SurfaceDark
+        )
+    }
+
+    // Search & Replace Bottom Sheet
+    if (showSearchReplaceSheet) {
+        SearchReplaceBottomSheet(
+            content = content,
+            initialMode = searchReplaceInitialMode,
+            onDismiss = { showSearchReplaceSheet = false },
+            onReplace = { newContent ->
+                viewModel.updateContent(newContent)
+                textFieldValue = TextFieldValue(
+                    text = newContent,
+                    selection = TextRange(newContent.length)
+                )
             }
         )
     }
@@ -775,7 +920,11 @@ enum class FileType {
         }
     }
 
-    fun getToolbarTools(): List<EditorTool> = when (this) {
+    fun getToolbarTools(
+        onShowValidation: (title: String, message: String, isError: Boolean) -> Unit = { _, _, _ -> },
+        onShowWordCount: () -> Unit = {},
+        onShowFindReplace: () -> Unit = {}
+    ): List<EditorTool> = when (this) {
         MARKDOWN -> listOf(
             EditorTool(Icons.Default.FormatBold, "Insert Bold") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("$content****")
@@ -811,8 +960,18 @@ enum class FileType {
                     // Invalid JSON, keep as is
                 }
             },
-            EditorTool(Icons.Default.Description, "Validate JSON") { viewModel, content, selectedText, range ->
-                // TODO: Show validation result
+            EditorTool(Icons.Default.Description, "Validate JSON") { _, content, _, _ ->
+                try {
+                    org.json.JSONObject(content)
+                    onShowValidation("JSON Validation", "✓ Valid JSON - No errors found.", false)
+                } catch (e: Exception) {
+                    try {
+                        org.json.JSONArray(content)
+                        onShowValidation("JSON Validation", "✓ Valid JSON Array - No errors found.", false)
+                    } catch (e2: Exception) {
+                        onShowValidation("JSON Validation Error", "✗ Invalid JSON:\n${e.message}", true)
+                    }
+                }
             },
             EditorTool(Icons.Default.Code, "Add Object") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("$content{\n  \"key\": \"value\"\n}")
@@ -831,8 +990,14 @@ enum class FileType {
             EditorTool(Icons.Default.Code, "Format YAML") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("# YAML Configuration\nkey: value\nnested:\n  subkey: subvalue\n")
             },
-            EditorTool(Icons.Default.Description, "Validate YAML") { viewModel, content, selectedText, range ->
-                // TODO: Implement YAML validation
+            EditorTool(Icons.Default.Description, "Validate YAML") { _, content, _, _ ->
+                try {
+                    val yaml = org.yaml.snakeyaml.Yaml()
+                    yaml.load<Any>(content)
+                    onShowValidation("YAML Validation", "✓ Valid YAML - No errors found.", false)
+                } catch (e: Exception) {
+                    onShowValidation("YAML Validation Error", "✗ Invalid YAML:\n${e.message}", true)
+                }
             },
             EditorTool(Icons.Default.Code, "Add Section") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("$content\n# New Section\nsection:\n  key: value")
@@ -848,8 +1013,15 @@ enum class FileType {
             EditorTool(Icons.Default.Code, "Format XML") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("<?xml version=\"1.0\"?>\n<root>\n  <element>${content}</element>\n</root>")
             },
-            EditorTool(Icons.Default.Description, "Validate XML") { viewModel, content, selectedText, range ->
-                // TODO: Implement XML validation
+            EditorTool(Icons.Default.Description, "Validate XML") { _, content, _, _ ->
+                try {
+                    val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+                    val builder = factory.newDocumentBuilder()
+                    builder.parse(org.xml.sax.InputSource(java.io.StringReader(content)))
+                    onShowValidation("XML Validation", "✓ Valid XML - No errors found.", false)
+                } catch (e: Exception) {
+                    onShowValidation("XML Validation Error", "✗ Invalid XML:\n${e.message}", true)
+                }
             },
             EditorTool(Icons.Default.Code, "Add Element") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("$content<element></element>")
@@ -885,8 +1057,29 @@ enum class FileType {
             }
         )
         CSV -> listOf(
-            EditorTool(Icons.Default.Description, "Format CSV") { viewModel, content, selectedText, range ->
-                // TODO: Implement CSV formatting
+            EditorTool(Icons.Default.Description, "Format CSV") { viewModel, content, _, _ ->
+                // Auto-align CSV columns by padding cells
+                try {
+                    val rows = content.split("\n").filter { it.isNotBlank() }
+                    if (rows.isNotEmpty()) {
+                        val parsedRows = rows.map { row ->
+                            row.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)".toRegex())
+                                .map { it.trim().removeSurrounding("\"") }
+                        }
+                        val colCount = parsedRows.maxOf { it.size }
+                        val colWidths = (0 until colCount).map { col ->
+                            parsedRows.maxOf { row -> (row.getOrNull(col) ?: "").length }
+                        }
+                        val formatted = parsedRows.joinToString("\n") { row ->
+                            (0 until colCount).joinToString(", ") { col ->
+                                (row.getOrNull(col) ?: "").padEnd(colWidths[col])
+                            }
+                        }
+                        viewModel.updateContent(formatted)
+                    }
+                } catch (e: Exception) {
+                    // Keep content as-is on error
+                }
             },
             EditorTool(Icons.Default.Code, "Add Row") { viewModel, content, selectedText, range ->
                 viewModel.updateContent("$content,New Value\n")
@@ -902,14 +1095,22 @@ enum class FileType {
             }
         )
         TEXT, LOG, UNKNOWN -> listOf(
-            EditorTool(Icons.Default.Description, "Word Count") { viewModel, content, selectedText, range ->
-                // TODO: Show word count dialog
+            EditorTool(Icons.Default.Description, "Word Count") { _, _, _, _ ->
+                onShowWordCount()
             },
-            EditorTool(Icons.Default.Code, "Line Numbers") { viewModel, content, selectedText, range ->
-                // TODO: Toggle line numbers display
+            EditorTool(Icons.Default.Code, "Line Numbers") { viewModel, content, _, _ ->
+                // Add/remove line numbers prefix to each line
+                val lines = content.lines()
+                val hasLineNumbers = lines.firstOrNull()?.matches(Regex("^\\d+[:|.]\\s.*")) == true
+                val result = if (hasLineNumbers) {
+                    lines.joinToString("\n") { it.replace(Regex("^\\d+[:|.]\\s"), "") }
+                } else {
+                    lines.mapIndexed { index, line -> "${index + 1}: $line" }.joinToString("\n")
+                }
+                viewModel.updateContent(result)
             },
-            EditorTool(Icons.Default.Code, "Find & Replace") { viewModel, content, selectedText, range ->
-                // TODO: Show find/replace dialog
+            EditorTool(Icons.Default.Code, "Find & Replace") { _, _, _, _ ->
+                onShowFindReplace()
             },
             EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
                 viewModel.undo()
@@ -1530,5 +1731,306 @@ fun copyFileToAppStorageEditorScreen(context: android.content.Context, uri: Uri,
         }
     } catch (e: Exception) {
         e.printStackTrace()
+    }
+}
+
+// --- Word Count Row helper ---
+@Composable
+fun WordCountRow(label: String, count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = TextGray, fontSize = 14.sp)
+        Text(
+            count.toString(),
+            color = PrimaryBlue,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+// --- Search & Replace Bottom Sheet ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchReplaceBottomSheet(
+    content: String,
+    initialMode: String = "search",
+    onDismiss: () -> Unit,
+    onReplace: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var mode by remember { mutableStateOf(initialMode) } // "search" or "replace"
+    var searchText by remember { mutableStateOf("") }
+    var replaceText by remember { mutableStateOf("") }
+    var useRegex by remember { mutableStateOf(false) }
+    var caseSensitive by remember { mutableStateOf(false) }
+    var matchCount by remember { mutableStateOf(0) }
+    var currentMatchIndex by remember { mutableStateOf(0) }
+    var matches by remember { mutableStateOf<List<IntRange>>(emptyList()) }
+
+    // Compute matches whenever search text, content, or options change
+    LaunchedEffect(searchText, content, useRegex, caseSensitive) {
+        if (searchText.isEmpty()) {
+            matchCount = 0
+            currentMatchIndex = 0
+            matches = emptyList()
+        } else {
+            try {
+                val found = mutableListOf<IntRange>()
+                if (useRegex) {
+                    val flags = if (caseSensitive) setOf<RegexOption>() else setOf(RegexOption.IGNORE_CASE)
+                    Regex(searchText, flags).findAll(content).forEach {
+                        found.add(it.range)
+                    }
+                } else {
+                    val searchIn = if (caseSensitive) content else content.lowercase()
+                    val searchFor = if (caseSensitive) searchText else searchText.lowercase()
+                    var startIndex = 0
+                    while (true) {
+                        val index = searchIn.indexOf(searchFor, startIndex)
+                        if (index < 0) break
+                        found.add(index until (index + searchFor.length))
+                        startIndex = index + 1
+                    }
+                }
+                matches = found
+                matchCount = found.size
+                if (currentMatchIndex >= found.size) currentMatchIndex = 0
+            } catch (e: Exception) {
+                matches = emptyList()
+                matchCount = 0
+                currentMatchIndex = 0
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = SurfaceDark,
+        contentColor = TextWhite
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp)
+        ) {
+            // Mode selector tabs
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { mode = "search" },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = if (mode == "search") PrimaryBlue else BackgroundDark,
+                        contentColor = if (mode == "search") Color.White else TextGray
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Search", fontSize = 14.sp)
+                }
+                Button(
+                    onClick = { mode = "replace" },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = if (mode == "replace") PrimaryBlue else BackgroundDark,
+                        contentColor = if (mode == "replace") Color.White else TextGray
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.FindReplace, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Replace", fontSize = 14.sp)
+                }
+            }
+
+            // Search field
+            TextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                placeholder = { Text("Search text...", color = TextGray.copy(alpha = 0.6f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextGray) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = TextStyle(color = TextWhite, fontFamily = FontFamily.Monospace, fontSize = 14.sp),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = androidx.compose.material3.TextFieldDefaults.colors(
+                    focusedContainerColor = BackgroundDark,
+                    unfocusedContainerColor = BackgroundDark,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Replace field (only in replace mode)
+            if (mode == "replace") {
+                TextField(
+                    value = replaceText,
+                    onValueChange = { replaceText = it },
+                    placeholder = { Text("Replace with...", color = TextGray.copy(alpha = 0.6f)) },
+                    leadingIcon = { Icon(Icons.Default.FindReplace, contentDescription = null, tint = TextGray) },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(color = TextWhite, fontFamily = FontFamily.Monospace, fontSize = 14.sp),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedContainerColor = BackgroundDark,
+                        unfocusedContainerColor = BackgroundDark,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Options row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { caseSensitive = !caseSensitive }
+                ) {
+                    androidx.compose.material3.Checkbox(
+                        checked = caseSensitive,
+                        onCheckedChange = { caseSensitive = it },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(
+                            checkedColor = PrimaryBlue,
+                            uncheckedColor = TextGray
+                        )
+                    )
+                    Text("Aa", color = if (caseSensitive) PrimaryBlue else TextGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { useRegex = !useRegex }
+                ) {
+                    androidx.compose.material3.Checkbox(
+                        checked = useRegex,
+                        onCheckedChange = { useRegex = it },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(
+                            checkedColor = PrimaryBlue,
+                            uncheckedColor = TextGray
+                        )
+                    )
+                    Text(".*", color = if (useRegex) PrimaryBlue else TextGray, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            // Match count and navigation
+            if (searchText.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (matchCount > 0) "${currentMatchIndex + 1} of $matchCount match${if (matchCount != 1) "es" else ""}"
+                        else "No matches found",
+                        color = if (matchCount > 0) Color(0xFF4CAF50) else Color(0xFFF44336),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    // Navigation arrows (prev/next match)
+                    if (matchCount > 1) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(
+                                onClick = { currentMatchIndex = if (currentMatchIndex > 0) currentMatchIndex - 1 else matchCount - 1 },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Previous match", tint = PrimaryBlue,
+                                    modifier = Modifier.graphicsLayer(rotationZ = 180f))
+                            }
+                            IconButton(
+                                onClick = { currentMatchIndex = (currentMatchIndex + 1) % matchCount },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Next match", tint = PrimaryBlue)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Replace action buttons (only in replace mode)
+            if (mode == "replace" && searchText.isNotEmpty() && matchCount > 0) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Replace current match (one by one)
+                    Button(
+                        onClick = {
+                            if (matches.isNotEmpty() && currentMatchIndex < matches.size) {
+                                val matchRange = matches[currentMatchIndex]
+                                val before = content.substring(0, matchRange.first)
+                                val after = content.substring(matchRange.last + 1)
+                                val newContent = "$before$replaceText$after"
+                                onReplace(newContent)
+                                // Recalculate will happen via LaunchedEffect, stay on same index
+                                if (currentMatchIndex >= matchCount - 1) {
+                                    currentMatchIndex = 0
+                                }
+                            }
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = IconOrange,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Replace", fontSize = 13.sp)
+                    }
+
+                    // Replace All
+                    Button(
+                        onClick = {
+                            val result = try {
+                                if (useRegex) {
+                                    val flags = if (caseSensitive) setOf<RegexOption>() else setOf(RegexOption.IGNORE_CASE)
+                                    content.replace(Regex(searchText, flags), replaceText)
+                                } else {
+                                    content.replace(searchText, replaceText, ignoreCase = !caseSensitive)
+                                }
+                            } catch (e: Exception) {
+                                content
+                            }
+                            onReplace(result)
+                            onDismiss()
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = PrimaryBlue,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Replace All", fontSize = 13.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }

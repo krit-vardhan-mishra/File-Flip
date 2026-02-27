@@ -24,22 +24,14 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
 
-    // Handle pending file from external intent
+    // Handle pending file from external intent — always open in editor first
     LaunchedEffect(pendingFilePath) {
         pendingFilePath?.let { filePath ->
-            val fileExtension = filePath.substringAfterLast(".", "").lowercase()
-
-            // Determine if file should open in editor or preview
-            val shouldOpenInEditor = when (fileExtension) {
-                "md", "markdown", "txt", "log", "json", "xml", "yaml", "yml",
-                "html", "htm", "css", "js", "javascript", "csv" -> true
-                else -> false // Open other files (images, videos, etc.) in preview
-            }
-
             val encodedPath = java.net.URLEncoder.encode(filePath, "UTF-8")
-            val route = if (shouldOpenInEditor) "editor/$encodedPath" else "preview/$encodedPath"
+            // Always open in editor so user can review/edit before previewing
+            val route = "editor/$encodedPath"
 
-            // Navigate to the appropriate screen
+            // Navigate to the editor screen
             navController.navigate(route) {
                 // Clear the back stack to avoid going back to onboarding/dashboard
                 popUpTo(navController.graph.startDestinationId) {

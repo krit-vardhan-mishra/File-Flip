@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,24 +51,44 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+        // Re-compose with updated pending file
+        recreate()
     }
 
     private fun handleIntent(intent: Intent?) {
         intent?.let { incomingIntent ->
             when (incomingIntent.action) {
-                Intent.ACTION_VIEW -> {
+                Intent.ACTION_VIEW, Intent.ACTION_EDIT -> {
                     val uri = incomingIntent.data
                     uri?.let { fileUri ->
                         Log.d("FileFlip", "Received file intent: $fileUri")
 
-                        // Try to get the file path
-                        val filePath = getFilePathFromUri(fileUri)
+                        // Copy the file content to app storage and get a real file path
+                        val filePath = copyUriToAppStorage(fileUri)
                         if (filePath != null) {
                             pendingFileUri = fileUri
                             pendingFilePath = filePath
-                            Log.d("FileFlip", "File path resolved: $filePath")
+                            Log.d("FileFlip", "File copied to app storage: $filePath")
                         } else {
-                            Log.e("FileFlip", "Could not resolve file path from URI: $fileUri")
+                            Log.e("FileFlip", "Could not copy file from URI: $fileUri")
+                        }
+                    }
+                }
+                Intent.ACTION_SEND -> {
+                    // Handle files shared via "Send to" / Share menu
+                    val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        incomingIntent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        incomingIntent.getParcelableExtra(Intent.EXTRA_STREAM)
+                    }
+                    uri?.let { fileUri ->
+                        Log.d("FileFlip", "Received shared file: $fileUri")
+                        val filePath = copyUriToAppStorage(fileUri)
+                        if (filePath != null) {
+                            pendingFileUri = fileUri
+                            pendingFilePath = filePath
+                            Log.d("FileFlip", "Shared file copied to app storage: $filePath")
                         }
                     }
                 }
@@ -75,30 +96,95 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun getFilePathFromUri(uri: Uri): String? {
+    /**
+     * Copies the content from a URI (content:// or file://) to the app's local storage
+     * and returns the real file path. This is essential for handling files from external
+     * apps like WhatsApp, Gmail, etc. that provide content:// URIs.
+     */
+    private fun copyUriToAppStorage(uri: Uri): String? {
         return try {
-            // For file:// URIs
+            // For file:// URIs, check if file is directly accessible
             if (uri.scheme == "file") {
-                return uri.path
-            }
-
-            // For content:// URIs, try to get the actual file path
-            // This is a simplified approach - in a real app you might want more robust handling
-            val cursor = contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val displayName = it.getString(it.getColumnIndexOrThrow("_display_name"))
-                    // Create a temporary file or handle the content URI appropriately
-                    // For now, we'll just return the URI as string
-                    return uri.toString()
+                val path = uri.path
+                if (path != null && File(path).exists()) {
+                    return path
                 }
             }
 
-            // Fallback to URI string
-            uri.toString()
+            // For content:// URIs, copy to app storage
+            val fileName = getDisplayNameFromUri(uri) ?: generateFallbackFileName(uri)
+            val outputDir = File(getExternalFilesDir(null), "Files").apply {
+                if (!exists()) mkdirs()
+            }
+
+            // Avoid overwriting: if file exists, add timestamp
+            var outputFile = File(outputDir, fileName)
+            if (outputFile.exists()) {
+                val nameWithoutExt = fileName.substringBeforeLast(".", fileName)
+                val ext = fileName.substringAfterLast(".", "")
+                val timestamp = System.currentTimeMillis()
+                outputFile = if (ext.isNotEmpty()) {
+                    File(outputDir, "${nameWithoutExt}_$timestamp.$ext")
+                } else {
+                    File(outputDir, "${nameWithoutExt}_$timestamp")
+                }
+            }
+
+            // Copy content from URI to local file
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                outputFile.outputStream().use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            } ?: return null
+
+            Log.d("FileFlip", "File copied successfully: ${outputFile.absolutePath}")
+            outputFile.absolutePath
         } catch (e: Exception) {
-            Log.e("FileFlip", "Error getting file path from URI: ${e.message}")
+            Log.e("FileFlip", "Error copying file from URI: ${e.message}", e)
             null
         }
+    }
+
+    /**
+     * Gets the display name (filename) from a content:// URI using ContentResolver.
+     */
+    private fun getDisplayNameFromUri(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                } else null
+            }
+        } catch (e: Exception) {
+            Log.e("FileFlip", "Error getting display name: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Generates a fallback file name when the display name cannot be determined.
+     * Tries to extract from URI path or MIME type.
+     */
+    private fun generateFallbackFileName(uri: Uri): String {
+        // Try to get extension from URI path
+        val pathSegment = uri.lastPathSegment
+        if (pathSegment != null && pathSegment.contains(".")) {
+            return pathSegment.substringAfterLast("/")
+        }
+
+        // Try to get extension from MIME type
+        val mimeType = contentResolver.getType(uri)
+        val extension = when (mimeType) {
+            "text/markdown" -> "md"
+            "text/plain" -> "txt"
+            "text/html" -> "html"
+            "text/xml", "application/xml" -> "xml"
+            "text/csv" -> "csv"
+            "application/json" -> "json"
+            "text/yaml", "application/yaml" -> "yaml"
+            else -> "txt"
+        }
+        return "imported_${System.currentTimeMillis()}.$extension"
     }
 }
