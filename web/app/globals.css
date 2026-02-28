@@ -1,0 +1,80 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --color-surface-dark: #101C22;
+  --color-surface-variant: #1E2A32;
+  --color-surface-variant-hover: #2C3B45;
+  --color-primary-blue: #0DA6F2;
+  --color-primary-container: #004C6E;
+  --color-on-primary: #FFFFFF;
+  --color-secondary-container: #2A3844;
+  --color-text-primary: #E1E2E6;
+  --color-text-secondary: #A0AAB4;
+  --color-accent-orange: #FF9F1C;
+  --color-accent-emerald: #10B981;
+  --color-accent-purple: #8B5CF6;
+  
+  --color-md-sys-color-primary: #0DA6F2;
+  --color-md-sys-color-on-primary: #FFFFFF;
+  --color-md-sys-color-primary-container: #004B75;
+  --color-md-sys-color-on-primary-container: #CFE5FF;
+  --color-md-sys-color-background: #101C22;
+  --color-md-sys-color-on-background: #E1E2E4;
+  --color-md-sys-color-surface: #19252B;
+  --color-md-sys-color-surface-variant: #40484C;
+  --color-md-sys-color-on-surface: #E1E2E4;
+  --color-md-sys-color-on-surface-variant: #C0C8CC;
+  --color-md-sys-color-outline: #8A9296;
+  --color-md-sys-color-outline-variant: #40484C;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-surface-dark);
+    color: var(--color-text-primary);
+  }
+}
+
+@layer utilities {
+  .m3-card {
+    border-radius: 24px;
+    transition: all 0.2s cubic-bezier(0.2, 0.0, 0, 1.0);
+  }
+  .m3-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+    background-color: var(--color-surface-variant-hover);
+  }
+  .m3-button {
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+  .hero-gradient {
+    background: linear-gradient(135deg, var(--color-primary-blue) 0%, #0077B6 100%);
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-md-sys-color-surface-variant);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-md-sys-color-outline);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
