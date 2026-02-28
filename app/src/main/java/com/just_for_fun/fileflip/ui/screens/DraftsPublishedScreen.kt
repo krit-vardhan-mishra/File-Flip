@@ -57,16 +57,16 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.just_for_fun.fileflip.ui.util.FileIconHelper
 import android.util.Log
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 
-// Colors derived from Dashboard HTML/Design
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830) // Used for cards
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
-private val IconOrange = Color(0xFFFF9F1C) // Approx for "article" icon
-private val IconEmerald = Color(0xFF10B981) // Approx for "source" icon
+// Colors derived from Dashboard Design (Theme-Aware)
+private val PrimaryBlue @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark @Composable get() = LocalAppColors.current.background
+private val SurfaceDark @Composable get() = LocalAppColors.current.surface
+private val TextWhite @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray @Composable get() = LocalAppColors.current.textSecondary
 
 // Sample draft files (unsaved files)
 private val draftFiles = listOf(
@@ -81,7 +81,7 @@ private val draftFiles = listOf(
         isStarred = false,
         isRecent = true,
         icon = Icons.AutoMirrored.Rounded.Article,
-        iconColor = IconOrange,
+        iconColor = FileIconHelper.IconOrange,
         preview = "# Unsaved Notes\n\nThis is a draft file that hasn't been saved yet.\n\n## TODO\n\n- Finish writing\n- Add more content\n- Save the file"
     ),
     DemoFile(
@@ -95,7 +95,7 @@ private val draftFiles = listOf(
         isStarred = false,
         isRecent = false,
         icon = Icons.Rounded.Code,
-        iconColor = IconEmerald,
+        iconColor = FileIconHelper.IconEmerald,
         preview = "{\n  \"status\": \"draft\",\n  \"temp\": true,\n  \"data\": \"unsaved\"\n}"
     )
 )
@@ -147,13 +147,21 @@ fun DraftsPublishedScreen(navController: NavController) {
                 }
             } else {
                 items(draftFiles) { file ->
-                    FileItemRow(file, navController, onClick = {
-                        Log.d("FileFlip", "DraftsPublishedScreen: Draft file clicked - ${file.name}, path: ${file.path}")
-                        val encodedPath = URLEncoder.encode(file.path, "UTF-8")
-                        navController.navigate("editor/$encodedPath")
-                    }, onMenuClick = {
-                        // Handle menu click for draft files
-                    })
+                    FileItemRow(
+                        name = file.name,
+                        size = file.size,
+                        date = file.date,
+                        icon = file.icon,
+                        iconColor = file.iconColor,
+                        onClick = {
+                            Log.d("FileFlip", "DraftsPublishedScreen: Draft file clicked - ${file.name}, path: ${file.path}")
+                            val encodedPath = URLEncoder.encode(file.path, "UTF-8")
+                            navController.navigate("editor/$encodedPath")
+                        }, 
+                        onMenuClick = {
+                            // Handle menu click for draft files
+                        }
+                    )
                 }
             }
 
@@ -174,13 +182,21 @@ fun DraftsPublishedScreen(navController: NavController) {
                 }
             } else {
                 items(publishedFiles) { file ->
-                    FileItemRow(file, navController, onClick = {
-                        Log.d("FileFlip", "DraftsPublishedScreen: Published file clicked - ${file.name}, path: ${file.path}")
-                        val encodedPath = URLEncoder.encode(file.path, "UTF-8")
-                        navController.navigate("editor/$encodedPath")
-                    }, onMenuClick = {
-                        // Handle menu click for published files
-                    })
+                    FileItemRow(
+                        name = file.name,
+                        size = file.size,
+                        date = file.date,
+                        icon = file.icon,
+                        iconColor = file.iconColor,
+                        onClick = {
+                            Log.d("FileFlip", "DraftsPublishedScreen: Published file clicked - ${file.name}, path: ${file.path}")
+                            val encodedPath = URLEncoder.encode(file.path, "UTF-8")
+                            navController.navigate("editor/$encodedPath")
+                        }, 
+                        onMenuClick = {
+                            // Handle menu click for published files
+                        }
+                    )
                 }
             }
         }

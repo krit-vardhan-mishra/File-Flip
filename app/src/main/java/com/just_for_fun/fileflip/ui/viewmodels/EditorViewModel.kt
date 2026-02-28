@@ -48,11 +48,11 @@ class EditorViewModel @Inject constructor(
     private val autoSaveDelayMs = 3000L // 3 seconds
     private var autoSaveJob: kotlinx.coroutines.Job? = null
     
-    val canUndo: StateFlow<Boolean> = MutableStateFlow(false)
-    val canRedo: StateFlow<Boolean> = MutableStateFlow(false)
-    
     private val _canUndo = MutableStateFlow(false)
+    val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
+    
     private val _canRedo = MutableStateFlow(false)
+    val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
     
     init {
         // Observe content changes for auto-save
@@ -81,24 +81,32 @@ class EditorViewModel @Inject constructor(
             )
             
             if (file != null) {
+                // Update last modified to mark as recent
+                val updatedFile = file.copy(lastModified = System.currentTimeMillis())
+                repository.saveFile(updatedFile)
+
                 // Check if file is already open
-                val existingIndex = _openFiles.value.indexOfFirst { it.path == file.path }
+                val existingIndex = _openFiles.value.indexOfFirst { it.path == updatedFile.path }
                 if (existingIndex >= 0) {
-                    // Switch to existing file
+                    // Update the file in open files list and switch
+                    _openFiles.value = _openFiles.value.toMutableList().apply {
+                        set(existingIndex, updatedFile)
+                    }
                     switchToFile(existingIndex)
                 } else {
                     // Add new file to open files
-                    _openFiles.value = _openFiles.value + file
+                    _openFiles.value = _openFiles.value + updatedFile
                     _currentFileIndex.value = _openFiles.value.size - 1
-                    _currentFile.value = file
-                    _content.value = file.content
-                    
+                    _currentFile.value = updatedFile
+                    _content.value = updatedFile.content
+
                     // Initialize undo/redo stacks for this file
-                    undoStacks[file.path] = mutableListOf()
-                    redoStacks[file.path] = mutableListOf()
+                    undoStacks[updatedFile.path] = mutableListOf()
+                    redoStacks[updatedFile.path] = mutableListOf()
                     updateUndoRedoState()
                 }
-            } else {
+            }
+ else {
                 // File not found - check if it's already open and needs to be removed
                 val existingIndex = _openFiles.value.indexOfFirst { it.path == path }
                 if (existingIndex >= 0) {

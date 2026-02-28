@@ -72,14 +72,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.graphics.asImageBitmap
 import java.io.StringReader
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 
-// --- Design Colors (Matched to EditorScreen) ---
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830)
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
-private val DividerColor = Color(0xFF0DA6F2).copy(alpha = 0.1f)
+// --- Design Colors (Theme-Aware) ---
+private val PrimaryBlue @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark @Composable get() = LocalAppColors.current.background
+private val SurfaceDark @Composable get() = LocalAppColors.current.surface
+private val TextWhite @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray @Composable get() = LocalAppColors.current.textSecondary
+private val DividerColor @Composable get() = LocalAppColors.current.divider
 private val CodeGreen = Color(0xFF98C379) // For values in TreeView
 private val CodeKey = Color(0xFF61AFEF)   // For keys in TreeView
 

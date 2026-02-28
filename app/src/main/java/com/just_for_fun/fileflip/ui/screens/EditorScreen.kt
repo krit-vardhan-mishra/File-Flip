@@ -110,46 +110,35 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import androidx.activity.ComponentActivity
+import com.just_for_fun.fileflip.ui.util.FileIconHelper
 import com.just_for_fun.fileflip.domain.model.MarkdownFile
 import com.just_for_fun.fileflip.ui.viewmodels.EditorViewModel
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 import java.io.File
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.platform.LocalDensity
 
 // Helper function to get file icon and color based on extension
 fun getFileIconAndColorEditorScreen(extension: String): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
-    return when (extension.lowercase()) {
-        ".md", ".markdown" -> Pair(Icons.AutoMirrored.Rounded.Article, IconOrange)
-        ".json" -> Pair(Icons.Rounded.Code, IconEmerald)
-        ".xml" -> Pair(Icons.Rounded.Code, Color(0xFF795548)) // Brown
-        ".yaml", ".yml" -> Pair(Icons.Rounded.Settings, Color(0xFF9C27B0)) // Purple
-        ".html" -> Pair(Icons.Rounded.Description, Color(0xFFE91E63)) // Pink
-        ".css" -> Pair(Icons.Rounded.Code, Color(0xFF2196F3)) // Blue
-        ".js", ".javascript" -> Pair(Icons.Rounded.Code, Color(0xFFFFD600)) // Yellow
-        ".txt", ".text" -> Pair(Icons.Rounded.Description, TextGray)
-        ".log" -> Pair(Icons.Rounded.Description, Color(0xFF607D8B)) // Blue Grey
-        ".csv" -> Pair(Icons.Rounded.Description, Color(0xFF4CAF50)) // Green
-        ".pdf" -> Pair(Icons.Rounded.Description, Color(0xFFF44336)) // Red
-        ".doc", ".docx" -> Pair(Icons.Rounded.Description, Color(0xFF1976D2)) // Blue
-        ".xls", ".xlsx" -> Pair(Icons.Rounded.Description, Color(0xFF388E3C)) // Green
-        ".ppt", ".pptx" -> Pair(Icons.Rounded.Description, Color(0xFFFF5722)) // Orange
-        ".zip", ".rar", ".7z" -> Pair(Icons.Rounded.FolderOpen, Color(0xFF795548)) // Brown
-        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" -> Pair(Icons.Rounded.AutoAwesome, Color(0xFF9C27B0)) // Purple
-        ".mp3", ".wav", ".flac", ".aac" -> Pair(Icons.Rounded.AutoAwesome, Color(0xFFE91E63)) // Pink
-        ".mp4", ".avi", ".mkv", ".mov" -> Pair(Icons.Rounded.AutoAwesome, Color(0xFF673AB7)) // Purple
-        else -> Pair(Icons.AutoMirrored.Rounded.Article, IconOrange) // Default
-    }
+    val cleanExtension = extension.removePrefix(".")
+    return FileIconHelper.getIconAndColor(cleanExtension)
 }
 
-// Design Colors
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830)
-private val GutterColor = Color(0xFF152329) // Slightly lighter than background
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
-private val DividerColor = Color(0xFF0DA6F2).copy(alpha = 0.1f)
-private val IconOrange = Color(0xFFFF9F1C) // Approx for "article" icon
-private val IconEmerald = Color(0xFF10B981) // Approx for "source" icon
+// Design Colors - theme-aware
+private val PrimaryBlue: Color @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark: Color @Composable get() = LocalAppColors.current.background
+private val SurfaceDark: Color @Composable get() = LocalAppColors.current.surface
+private val GutterColor: Color @Composable get() = LocalAppColors.current.gutter
+private val TextWhite: Color @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray: Color @Composable get() = LocalAppColors.current.textSecondary
+private val DividerColor: Color @Composable get() = LocalAppColors.current.divider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -195,6 +184,12 @@ fun EditorScreen(
     var showSearchReplaceSheet by remember { mutableStateOf(false) }
     var searchReplaceInitialMode by remember { mutableStateOf("search") } // "search" or "replace"
     
+    // Search highlighting state
+    var searchMatchRanges by remember { mutableStateOf<List<IntRange>>(emptyList()) }
+    var currentSearchMatchIndex by remember { mutableStateOf(0) }
+    var replaceHighlight by remember { mutableStateOf<Pair<IntRange, Color>?>(null) }
+    val editorScrollState = rememberScrollState()
+    
     // Menu and drawer states
     var showMenu by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -207,6 +202,21 @@ fun EditorScreen(
                 text = content,
                 selection = textFieldValue.selection
             )
+        }
+    }
+    
+    // Scroll to current search match when it changes
+    val density = LocalDensity.current
+    val lineHeightPx = with(density) { 22.sp.toPx() }
+    LaunchedEffect(currentSearchMatchIndex, searchMatchRanges) {
+        if (searchMatchRanges.isNotEmpty() && currentSearchMatchIndex < searchMatchRanges.size) {
+            val matchRange = searchMatchRanges[currentSearchMatchIndex]
+            // Count newlines before match start to find line number
+            val textBeforeMatch = content.substring(0, matchRange.first.coerceAtMost(content.length))
+            val lineNumber = textBeforeMatch.count { it == '\n' }
+            // Scroll to approximate pixel position (line * lineHeight), with some offset above
+            val targetScroll = ((lineNumber - 2).coerceAtLeast(0) * lineHeightPx).toInt()
+            editorScrollState.animateScrollTo(targetScroll)
         }
     }
     
@@ -551,6 +561,18 @@ fun EditorScreen(
                     .background(BackgroundDark)
                     .padding(horizontal = 16.dp, vertical = 16.dp)
             ) {
+                // Build VisualTransformation for search highlighting
+                val appColors = LocalAppColors.current
+                val searchHighlightTransformation = remember(searchMatchRanges, currentSearchMatchIndex, replaceHighlight) {
+                    SearchHighlightTransformation(
+                        matchRanges = searchMatchRanges,
+                        currentMatchIndex = currentSearchMatchIndex,
+                        searchHighlightColor = appColors.searchHighlight,
+                        currentMatchColor = appColors.searchHighlight.copy(alpha = 0.6f),
+                        replaceHighlight = replaceHighlight
+                    )
+                }
+
                 SelectionContainer {
                     TextField(
                         value = textFieldValue,
@@ -560,13 +582,14 @@ fun EditorScreen(
                         },
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(editorScrollState),
                         textStyle = TextStyle(
                             color = TextWhite,
                             fontSize = 15.sp,
                             fontFamily = fontFamily,
                             lineHeight = 22.sp
                         ),
+                        visualTransformation = searchHighlightTransformation,
                         colors = androidx.compose.material3.TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
@@ -830,13 +853,26 @@ fun EditorScreen(
         SearchReplaceBottomSheet(
             content = content,
             initialMode = searchReplaceInitialMode,
-            onDismiss = { showSearchReplaceSheet = false },
+            onDismiss = {
+                showSearchReplaceSheet = false
+                // Clear all highlights when sheet is dismissed
+                searchMatchRanges = emptyList()
+                currentSearchMatchIndex = 0
+                replaceHighlight = null
+            },
             onReplace = { newContent ->
                 viewModel.updateContent(newContent)
                 textFieldValue = TextFieldValue(
                     text = newContent,
                     selection = TextRange(newContent.length)
                 )
+            },
+            onMatchesChanged = { matches, currentIndex ->
+                searchMatchRanges = matches
+                currentSearchMatchIndex = currentIndex
+            },
+            onReplaceHighlight = { highlight ->
+                replaceHighlight = highlight
             }
         )
     }
@@ -1454,7 +1490,7 @@ fun MoreOptionsBottomSheet(
                 Icon(
                     imageVector = Icons.Default.Share,
                     contentDescription = null,
-                    tint = IconOrange,
+                    tint = FileIconHelper.IconOrange,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
@@ -1483,7 +1519,7 @@ fun MoreOptionsBottomSheet(
                 Icon(
                     imageVector = Icons.Default.Print,
                     contentDescription = null,
-                    tint = IconEmerald,
+                    tint = FileIconHelper.IconEmerald,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
@@ -1758,9 +1794,13 @@ fun SearchReplaceBottomSheet(
     content: String,
     initialMode: String = "search",
     onDismiss: () -> Unit,
-    onReplace: (String) -> Unit
+    onReplace: (String) -> Unit,
+    onMatchesChanged: (matches: List<IntRange>, currentIndex: Int) -> Unit = { _, _ -> },
+    onReplaceHighlight: (Pair<IntRange, Color>?) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val replaceScope = androidx.compose.runtime.rememberCoroutineScope()
+    val appColors = LocalAppColors.current
     var mode by remember { mutableStateOf(initialMode) } // "search" or "replace"
     var searchText by remember { mutableStateOf("") }
     var replaceText by remember { mutableStateOf("") }
@@ -1769,6 +1809,11 @@ fun SearchReplaceBottomSheet(
     var matchCount by remember { mutableStateOf(0) }
     var currentMatchIndex by remember { mutableStateOf(0) }
     var matches by remember { mutableStateOf<List<IntRange>>(emptyList()) }
+
+    // Propagate matches to parent for highlighting
+    LaunchedEffect(matches, currentMatchIndex) {
+        onMatchesChanged(matches, currentMatchIndex)
+    }
 
     // Compute matches whenever search text, content, or options change
     LaunchedEffect(searchText, content, useRegex, caseSensitive) {
@@ -1973,15 +2018,30 @@ fun SearchReplaceBottomSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Replace current match (one by one)
+                    // Replace current match (one by one) with red→green highlighting
                     Button(
                         onClick = {
                             if (matches.isNotEmpty() && currentMatchIndex < matches.size) {
                                 val matchRange = matches[currentMatchIndex]
-                                val before = content.substring(0, matchRange.first)
-                                val after = content.substring(matchRange.last + 1)
-                                val newContent = "$before$replaceText$after"
-                                onReplace(newContent)
+                                replaceScope.launch {
+                                    // Flash red highlight on the text being replaced
+                                    onReplaceHighlight(Pair(matchRange, appColors.replaceHighlightPending))
+                                    delay(300)
+                                    
+                                    // Perform the replacement
+                                    val before = content.substring(0, matchRange.first)
+                                    val after = content.substring(matchRange.last + 1)
+                                    val newContent = "$before$replaceText$after"
+                                    onReplace(newContent)
+                                    
+                                    // Flash green highlight on the replaced text
+                                    val replacedRange = matchRange.first until (matchRange.first + replaceText.length)
+                                    onReplaceHighlight(Pair(replacedRange, appColors.replaceHighlightDone))
+                                    delay(600)
+                                    
+                                    // Clear replace highlight
+                                    onReplaceHighlight(null)
+                                }
                                 // Recalculate will happen via LaunchedEffect, stay on same index
                                 if (currentMatchIndex >= matchCount - 1) {
                                     currentMatchIndex = 0
@@ -1989,7 +2049,7 @@ fun SearchReplaceBottomSheet(
                             }
                         },
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = IconOrange,
+                            containerColor = FileIconHelper.IconOrange,
                             contentColor = Color.White
                         ),
                         modifier = Modifier.weight(1f),
@@ -2032,5 +2092,48 @@ fun SearchReplaceBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+// --- Search Highlight VisualTransformation ---
+/**
+ * VisualTransformation that highlights search matches in the editor.
+ * All matches get a background highlight color, the current match gets a stronger highlight.
+ * An optional replace highlight adds a separate colored span (red for pending, green for done).
+ */
+class SearchHighlightTransformation(
+    private val matchRanges: List<IntRange>,
+    private val currentMatchIndex: Int,
+    private val searchHighlightColor: Color,
+    private val currentMatchColor: Color,
+    private val replaceHighlight: Pair<IntRange, Color>?
+) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        if (matchRanges.isEmpty() && replaceHighlight == null) {
+            return TransformedText(text, OffsetMapping.Identity)
+        }
+
+        val builder = buildAnnotatedString {
+            append(text)
+            // Highlight all search matches
+            matchRanges.forEachIndexed { index, range ->
+                val safeStart = range.first.coerceIn(0, text.length)
+                val safeEnd = (range.last + 1).coerceIn(0, text.length)
+                if (safeStart < safeEnd) {
+                    val bgColor = if (index == currentMatchIndex) currentMatchColor else searchHighlightColor
+                    addStyle(SpanStyle(background = bgColor), safeStart, safeEnd)
+                }
+            }
+            // Apply replace highlight (red pending / green done)
+            replaceHighlight?.let { (range, color) ->
+                val safeStart = range.first.coerceIn(0, text.length)
+                val safeEnd = (range.last + 1).coerceIn(0, text.length)
+                if (safeStart < safeEnd) {
+                    addStyle(SpanStyle(background = color), safeStart, safeEnd)
+                }
+            }
+        }
+
+        return TransformedText(builder, OffsetMapping.Identity)
     }
 }

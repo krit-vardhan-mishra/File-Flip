@@ -65,14 +65,15 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 
-// Shared Colors
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830)
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
-private val CardBackground = Color(0xFF1A2830)
+// Shared Colors (Theme-Aware)
+private val PrimaryBlue @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark @Composable get() = LocalAppColors.current.background
+private val SurfaceDark @Composable get() = LocalAppColors.current.surface
+private val TextWhite @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray @Composable get() = LocalAppColors.current.textSecondary
+private val CardBackground @Composable get() = LocalAppColors.current.surface
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

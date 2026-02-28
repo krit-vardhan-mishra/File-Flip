@@ -14,11 +14,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import com.just_for_fun.fileflip.ui.util.FileIconHelper
+
 // Colors
 private val PrimaryBlue = Color(0xFF0DA6F2)
 private val BackgroundDark = Color(0xFF101C22)
-private val IconEmerald = Color(0xFF10B981)
-private val IconOrange = Color(0xFFFF9F1C)
 private val TextGray = Color(0xFF94A3B8)
 
 data class DemoFile(
@@ -117,7 +117,7 @@ object DemoFilesData {
             isStarred = true,
             isRecent = true,
             icon = Icons.AutoMirrored.Rounded.Article,
-            iconColor = IconOrange,
+            iconColor = FileIconHelper.IconOrange,
             preview = "Project Documentation\n\nOverview\n\nThis is a sample markdown document template.\n\nFeatures\n\n• Easy to read\n• Supports formatting\n• Great for documentation\n\nGetting Started\n\nStart writing your content here..."
         ),
         DemoFile(
@@ -131,7 +131,7 @@ object DemoFilesData {
             isStarred = false,
             isRecent = true,
             icon = Icons.Rounded.Code,
-            iconColor = IconEmerald,
+            iconColor = FileIconHelper.IconEmerald,
             preview = "{\n  \"appName\": \"FileFlip\",\n  \"version\": \"1.0.0\",\n  \"settings\": {\n    \"theme\": \"dark\",\n    \"language\": \"en\",\n    \"notifications\": true\n  },\n  \"features\": [\n    \"editor\",\n    \"templates\",\n    \"export\"\n  ]\n}"
         ),
         DemoFile(

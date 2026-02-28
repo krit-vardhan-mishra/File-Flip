@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.just_for_fun.fileflip.ui.theme.FileFlipTheme
+import com.just_for_fun.fileflip.ui.theme.ThemeManager
 import com.just_for_fun.fileflip.ui.AppNavigation
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
@@ -31,6 +32,9 @@ class MainActivity : ComponentActivity() {
         val sharedPreferences = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
         val onboardingCompleted = sharedPreferences.getBoolean("onboarding_completed", false)
         val startDestination = if (onboardingCompleted) "dashboard" else "onboarding"
+
+        // Load saved theme preference
+        ThemeManager.loadTheme(this)
 
         setContent {
             FileFlipTheme {

@@ -70,6 +70,8 @@ import androidx.compose.ui.platform.LocalContext
 import android.util.Log
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.just_for_fun.fileflip.ui.theme.ThemeManager
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 
 // Global settings state for demo
 object SettingsState {
@@ -79,13 +81,14 @@ object SettingsState {
     var previewTextSize by mutableFloatStateOf(18f)
 }
 
-// Design Colors derived from HTML/Image
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830) // Dark Slate for cards
-private val BorderColor = Color(0xFF2D3748) // Slate-800 approx
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
+// Design Colors - now pulled from theme
+private val PrimaryBlue: Color @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark: Color @Composable get() = LocalAppColors.current.background
+private val SurfaceDark: Color @Composable get() = LocalAppColors.current.surface
+private val BorderColor: Color @Composable get() = LocalAppColors.current.border
+private val TextWhite: Color @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray: Color @Composable get() = LocalAppColors.current.textSecondary
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,7 +96,7 @@ fun SettingsScreen(navController: NavController) {
     val uriHandler = LocalUriHandler.current
     var textSize by remember { mutableFloatStateOf(SettingsState.editorTextSize) }
     var previewTextSize by remember { mutableFloatStateOf(SettingsState.previewTextSize) }
-    var selectedTheme by remember { mutableIntStateOf(1) } // 0: Light, 1: Dark, 2: System
+    var selectedTheme by remember { mutableIntStateOf(ThemeManager.currentThemeIndex) }
     var fontExpanded by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -280,7 +283,10 @@ fun SettingsScreen(navController: NavController) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Theme", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(12.dp))
-                        ThemeSegmentedControl(selectedTheme) { selectedTheme = it }
+                        ThemeSegmentedControl(selectedTheme) { 
+                            selectedTheme = it
+                            ThemeManager.setTheme(it, context)
+                        }
                     }
 
                     Divider(color = BorderColor, thickness = 1.dp)
@@ -323,7 +329,7 @@ fun SettingsScreen(navController: NavController) {
                     SettingRowItem(
                         icon = Icons.Rounded.Info,
                         title = "Version",
-                        trailingContent = { Text("v1.0.0", color = TextGray, fontSize = 14.sp) }
+                        trailingContent = { Text("v${com.just_for_fun.fileflip.BuildConfig.VERSION_NAME}", color = TextGray, fontSize = 14.sp) }
                     )
 
                     Divider(color = BorderColor, thickness = 1.dp)
@@ -421,15 +427,16 @@ fun SettingRowItem(
 
 @Composable
 fun ThemeSegmentedControl(selectedIndex: Int, onSelect: (Int) -> Unit) {
+    val colors = LocalAppColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(36.dp)
-            .background(Color(0xFF0F172A), RoundedCornerShape(8.dp)) // Darker bg for track
+            .background(Color(0xFF0F172A), RoundedCornerShape(8.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        val options = listOf("Light", "Dark", "System")
+        val options = listOf("Dark", "GitHub Dark")
         options.forEachIndexed { index, text ->
             val isSelected = selectedIndex == index
             Box(
@@ -437,7 +444,7 @@ fun ThemeSegmentedControl(selectedIndex: Int, onSelect: (Int) -> Unit) {
                     .weight(1f)
                     .fillMaxHeight()
                     .background(
-                        color = if (isSelected) PrimaryBlue else Color.Transparent,
+                        color = if (isSelected) colors.primaryBlue else Color.Transparent,
                         shape = RoundedCornerShape(6.dp)
                     )
                     .clickable { onSelect(index) },
@@ -445,7 +452,7 @@ fun ThemeSegmentedControl(selectedIndex: Int, onSelect: (Int) -> Unit) {
             ) {
                 Text(
                     text = text,
-                    color = if (isSelected) Color.White else TextGray,
+                    color = if (isSelected) Color.White else colors.textSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )

@@ -1,3 +1,4 @@
+// Just for demo, might add it later
 package com.just_for_fun.fileflip.ui.screens
 
 import androidx.compose.foundation.background
@@ -51,15 +52,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.just_for_fun.fileflip.ui.viewmodels.ProViewModel
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 
-// Colors matching Dashboard
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830)
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
-private val IconOrange = Color(0xFFFF9F1C)
-private val IconEmerald = Color(0xFF10B981)
+import com.just_for_fun.fileflip.ui.util.FileIconHelper
+
+// Colors matching Dashboard (Theme-Aware)
+private val PrimaryBlue @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark @Composable get() = LocalAppColors.current.background
+private val SurfaceDark @Composable get() = LocalAppColors.current.surface
+private val TextWhite @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray @Composable get() = LocalAppColors.current.textSecondary
 
 data class ProFeature(
     val icon: ImageVector,
@@ -261,7 +263,7 @@ fun ProFeatureItem(feature: ProFeature) {
                 modifier = Modifier
                     .size(40.dp)
                     .background(
-                        if (feature.isPremium) PrimaryBlue.copy(alpha = 0.1f) else IconEmerald.copy(alpha = 0.1f),
+                        if (feature.isPremium) PrimaryBlue.copy(alpha = 0.1f) else FileIconHelper.IconEmerald.copy(alpha = 0.1f),
                         RoundedCornerShape(10.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -269,7 +271,7 @@ fun ProFeatureItem(feature: ProFeature) {
                 Icon(
                     imageVector = feature.icon,
                     contentDescription = null,
-                    tint = if (feature.isPremium) PrimaryBlue else IconEmerald,
+                    tint = if (feature.isPremium) PrimaryBlue else FileIconHelper.IconEmerald,
                     modifier = Modifier.size(20.dp)
                 )
             }

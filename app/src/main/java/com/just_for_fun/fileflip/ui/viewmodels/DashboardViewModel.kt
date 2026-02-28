@@ -28,7 +28,7 @@ class DashboardViewModel @Inject constructor(
 
     fun loadFiles() {
         viewModelScope.launch {
-            _files.value = repository.getFiles()
+            _files.value = repository.getFiles().sortedByDescending { it.lastModified }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.just_for_fun.fileflip.ui.screens
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,41 +91,16 @@ import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.just_for_fun.fileflip.ui.util.FileIconHelper
 import android.util.Log
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 
-// Colors derived from Dashboard HTML/Design
-private val PrimaryBlue = Color(0xFF0DA6F2)
-private val BackgroundDark = Color(0xFF101C22)
-private val SurfaceDark = Color(0xFF1A2830) // Used for cards
-private val TextWhite = Color(0xFFF1F5F9)
-private val TextGray = Color(0xFF94A3B8)
-private val IconOrange = Color(0xFFFF9F1C) // Approx for "article" icon
-private val IconEmerald = Color(0xFF10B981) // Approx for "source" icon
-
-// Helper function to get file icon and color based on extension
-fun getFileIconAndColor(extension: String): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
-    return when (extension.lowercase()) {
-        "md", "markdown" -> Pair(Icons.AutoMirrored.Rounded.Article, IconOrange)
-        "json" -> Pair(Icons.Rounded.Code, IconEmerald)
-        "xml" -> Pair(Icons.Rounded.Code, Color(0xFF795548)) // Brown
-        "yaml", "yml" -> Pair(Icons.Rounded.Settings, Color(0xFF9C27B0)) // Purple
-        "html" -> Pair(Icons.Rounded.Description, Color(0xFFE91E63)) // Pink
-        "css" -> Pair(Icons.Rounded.Code, Color(0xFF2196F3)) // Blue
-        "js", "javascript" -> Pair(Icons.Rounded.Code, Color(0xFFFFD600)) // Yellow
-        "txt", "text" -> Pair(Icons.Rounded.Description, TextGray)
-        "log" -> Pair(Icons.Rounded.Description, Color(0xFF607D8B)) // Blue Grey
-        "csv" -> Pair(Icons.Rounded.Description, Color(0xFF4CAF50)) // Green
-        "pdf" -> Pair(Icons.Rounded.Description, Color(0xFFF44336)) // Red
-        "doc", "docx" -> Pair(Icons.Rounded.Description, Color(0xFF1976D2)) // Blue
-        "xls", "xlsx" -> Pair(Icons.Rounded.Description, Color(0xFF388E3C)) // Green
-        "ppt", "pptx" -> Pair(Icons.Rounded.Description, Color(0xFFFF5722)) // Orange
-        "zip", "rar", "7z" -> Pair(Icons.Rounded.FolderOpen, Color(0xFF795548)) // Brown
-        "jpg", "jpeg", "png", "gif", "bmp", "webp" -> Pair(Icons.Rounded.AutoAwesome, Color(0xFF9C27B0)) // Purple
-        "mp3", "wav", "flac", "aac" -> Pair(Icons.Rounded.AutoAwesome, Color(0xFFE91E63)) // Pink
-        "mp4", "avi", "mkv", "mov" -> Pair(Icons.Rounded.AutoAwesome, Color(0xFF673AB7)) // Purple
-        else -> Pair(Icons.AutoMirrored.Rounded.Article, IconOrange) // Default
-    }
-}
+// Colors - theme-aware
+private val PrimaryBlue: Color @Composable get() = LocalAppColors.current.primaryBlue
+private val BackgroundDark: Color @Composable get() = LocalAppColors.current.background
+private val SurfaceDark: Color @Composable get() = LocalAppColors.current.surface
+private val TextWhite: Color @Composable get() = LocalAppColors.current.textPrimary
+private val TextGray: Color @Composable get() = LocalAppColors.current.textSecondary
 
 @Composable
 fun DashboardScreen(
@@ -208,6 +184,7 @@ fun DashboardScreen(
                     Text("No recent files", color = TextGray, modifier = Modifier.padding(horizontal = 28.dp))
                 } else {
                     files.take(5).forEach { file ->
+                        val (fileIcon, fileIconColor) = FileIconHelper.getIconAndColor(file.name.substringAfterLast(".", "").lowercase())
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -229,13 +206,13 @@ fun DashboardScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(32.dp)
-                                        .background(IconOrange.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                                        .background(fileIconColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.Article,
+                                        imageVector = fileIcon,
                                         contentDescription = null,
-                                        tint = IconOrange,
+                                        tint = fileIconColor,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -302,7 +279,8 @@ fun DashboardScreen(
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        // TODO: Open GitHub Link
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/krit-vardhan-mishra/FileFlip"))
+                        context.startActivity(intent)
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     icon = { Icon(Icons.Rounded.Code, contentDescription = null) },
@@ -380,7 +358,8 @@ fun DashboardScreen(
                 ) {
                     importedFiles.forEach { file ->
                         val fileExtension = file.name.substringAfterLast(".", "").lowercase()
-                        val (fileIcon, fileIconColor) = getFileIconAndColor(fileExtension)
+                        val (fileIcon, fileIconColor) = FileIconHelper.getIconAndColor(fileExtension)
+
                         
                         // Reuse FileListItem or similar card logic
                         Card(
@@ -482,7 +461,8 @@ fun DashboardScreen(
                 }
                 items(files) { file ->
                     val fileExtension = file.name.substringAfterLast(".", "").lowercase()
-                    val (fileIcon, fileIconColor) = getFileIconAndColor(fileExtension)
+                    val (fileIcon, fileIconColor) = FileIconHelper.getIconAndColor(fileExtension)
+
                     FileListItem(
                         name = file.name,
                         date = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(file.lastModified),
@@ -798,16 +778,17 @@ fun FileActionsBottomSheet(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val (fileIcon, fileIconColor) = FileIconHelper.getIconAndColor(file.name.substringAfterLast(".", "").lowercase())
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .background(IconOrange.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                                .background(fileIconColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Article,
+                                imageVector = fileIcon,
                                 contentDescription = null,
-                                tint = IconOrange,
+                                tint = fileIconColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1165,7 +1146,7 @@ fun FileListItem(
     date: String,
     size: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.AutoMirrored.Rounded.Article,
-    iconColor: Color = IconOrange,
+    iconColor: Color = FileIconHelper.IconOrange,
     onClick: () -> Unit,
     onMoreClick: () -> Unit
 ) {
