@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileText, 
   LayoutDashboard, 
@@ -25,21 +25,85 @@ import {
   Menu,
   CloudUpload,
   FileBox,
-  ChevronLeft,
-  ChevronRight
+  X,
+  FileCode2,
+  FileSpreadsheet,
+  FileCog,
+  ScrollText,
+  Pencil,
+  Trash2,
+  ExternalLink
 } from 'lucide-react';
 import { useFiles } from '@/lib/FileContext';
 import { formatDistanceToNow } from 'date-fns';
 import BottomNav from '@/components/BottomNav';
+import Sidebar from '@/components/Sidebar';
+
+// File type definitions matching the Android app
+const FILE_TYPES = [
+  { type: 'markdown' as const, ext: 'md', label: 'Markdown Document', content: '# New Markdown File\n\nStart writing...' },
+  { type: 'json' as const, ext: 'json', label: 'JSON File', content: '{\n  "name": "New File",\n  "data": []\n}' },
+  { type: 'yaml' as const, ext: 'yaml', label: 'YAML File', content: '# New YAML File\nname: New File\ndata: []' },
+  { type: 'xml' as const, ext: 'xml', label: 'XML File', content: '<?xml version="1.0"?>\n<root>\n  <item>New File</item>\n</root>' },
+  { type: 'text' as const, ext: 'txt', label: 'Text File', content: 'New text file content...' },
+  { type: 'html' as const, ext: 'html', label: 'HTML Page', content: '<html>\n<body>\n  <h1>New HTML Page</h1>\n</body>\n</html>' },
+  { type: 'log' as const, ext: 'log', label: 'Log File', content: '[INFO] New log file created' },
+  { type: 'csv' as const, ext: 'csv', label: 'CSV File', content: 'Name,Value\nNew Item,0' },
+];
 
 export default function Dashboard() {
-  const { files, createFile, openLocalFile } = useFiles();
+  const { files, isLoading, createFile, openLocalFile, deleteFile, renameFile, openFileInEditor } = useFiles();
   const router = useRouter();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showFileTypeDialog, setShowFileTypeDialog] = useState(false);
+  const [menuFileId, setMenuFileId] = useState<string | null>(null);
+  const [renameFileId, setRenameFileId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const handleCreateNew = async () => {
-    const newFile = await createFile('Untitled.md', '# New Document\n\nStart typing here...', 'markdown');
-    router.push('/editor');
+  const handleCreateNew = () => {
+    setShowFileTypeDialog(true);
+  };
+
+  const handleFileTypeSelected = async (ft: typeof FILE_TYPES[number]) => {
+    setShowFileTypeDialog(false);
+    const newFile = await createFile(`Untitled.${ft.ext}`, ft.content, ft.type);
+    router.push(`/editor?id=${newFile.id}`);
+  };
+
+  const handleMenuToggle = (fileId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuFileId(prev => prev === fileId ? null : fileId);
+  };
+
+  const handleRenameStart = (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (file) {
+      setRenameValue(file.name);
+      setRenameFileId(fileId);
+      setMenuFileId(null);
+    }
+  };
+
+  const handleRenameSubmit = async () => {
+    if (renameFileId && renameValue.trim()) {
+      await renameFile(renameFileId, renameValue.trim());
+      setRenameFileId(null);
+      setRenameValue('');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmId) {
+      await deleteFile(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
+  };
+
+  const handleOpenInEditor = (fileId: string) => {
+    openFileInEditor(fileId);
+    setMenuFileId(null);
+    router.push(`/editor?id=${fileId}`);
   };
 
   const containerVariants = {
@@ -67,8 +131,13 @@ export default function Dashboard() {
 
   const getFileIcon = (type: string) => {
     switch (type) {
-      case 'json': return <Braces className="text-accent-orange w-6 h-6 md:w-8 md:h-8" />;
-      case 'html': return <Code className="text-accent-purple w-6 h-6 md:w-8 md:h-8" />;
+      case 'markdown': return <FileText className="text-primary-blue w-6 h-6 md:w-8 md:h-8" />;
+      case 'json': return <Braces className="text-accent-emerald w-6 h-6 md:w-8 md:h-8" />;
+      case 'yaml': return <FileCog className="text-accent-purple w-6 h-6 md:w-8 md:h-8" />;
+      case 'xml': return <Code className="text-amber-700 w-6 h-6 md:w-8 md:h-8" />;
+      case 'html': return <FileCode2 className="text-pink-500 w-6 h-6 md:w-8 md:h-8" />;
+      case 'csv': return <FileSpreadsheet className="text-green-500 w-6 h-6 md:w-8 md:h-8" />;
+      case 'log': return <ScrollText className="text-blue-grey w-6 h-6 md:w-8 md:h-8" />;
       case 'text': return <FileText className="text-gray-400 w-6 h-6 md:w-8 md:h-8" />;
       default: return <FileText className="text-primary-blue w-6 h-6 md:w-8 md:h-8" />;
     }
@@ -76,8 +145,13 @@ export default function Dashboard() {
 
   const getFileColorClass = (type: string) => {
     switch (type) {
-      case 'json': return 'group-hover:border-accent-orange/30';
-      case 'html': return 'group-hover:border-accent-purple/30';
+      case 'markdown': return 'group-hover:border-primary-blue/30';
+      case 'json': return 'group-hover:border-accent-emerald/30';
+      case 'yaml': return 'group-hover:border-accent-purple/30';
+      case 'xml': return 'group-hover:border-amber-700/30';
+      case 'html': return 'group-hover:border-pink-500/30';
+      case 'csv': return 'group-hover:border-green-500/30';
+      case 'log': return 'group-hover:border-blue-400/30';
       case 'text': return 'group-hover:border-gray-400/30';
       default: return 'group-hover:border-primary-blue/30';
     }
@@ -85,8 +159,13 @@ export default function Dashboard() {
 
   const getFileTextColorClass = (type: string) => {
     switch (type) {
-      case 'json': return 'group-hover:text-accent-orange';
-      case 'html': return 'group-hover:text-accent-purple';
+      case 'markdown': return 'group-hover:text-primary-blue';
+      case 'json': return 'group-hover:text-accent-emerald';
+      case 'yaml': return 'group-hover:text-accent-purple';
+      case 'xml': return 'group-hover:text-amber-700';
+      case 'html': return 'group-hover:text-pink-500';
+      case 'csv': return 'group-hover:text-green-500';
+      case 'log': return 'group-hover:text-blue-400';
       case 'text': return 'group-hover:text-white';
       default: return 'group-hover:text-primary-blue';
     }
@@ -94,48 +173,7 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen flex overflow-hidden selection:bg-primary-blue selection:text-white bg-md-sys-color-background">
-      {/* Desktop Sidebar */}
-      <aside className={`hidden md:flex flex-shrink-0 flex-col border-r border-surface-variant bg-surface-dark transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-20'}`}>
-        <div className={`h-20 flex items-center ${isSidebarOpen ? 'px-6 justify-between' : 'justify-center'}`}>
-          {isSidebarOpen && (
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-blue to-accent-emerald flex items-center justify-center shadow-lg shadow-primary-blue/20 shrink-0">
-                <FileText className="text-white w-6 h-6" />
-              </div>
-              <span className="text-xl font-bold tracking-tight whitespace-nowrap">MarkPDF</span>
-            </div>
-          )}
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-10 h-10 rounded-xl hover:bg-surface-variant flex items-center justify-center text-text-secondary shrink-0 transition-colors">
-            {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link href="/" className={`flex items-center gap-4 ${isSidebarOpen ? 'px-4 py-4' : 'p-3 justify-center'} rounded-full bg-primary-container text-primary-blue font-medium transition-all`}>
-            <LayoutDashboard className="w-6 h-6 shrink-0" />
-            {isSidebarOpen && <span className="whitespace-nowrap">Dashboard</span>}
-          </Link>
-          <Link href="/library" className={`flex items-center gap-4 ${isSidebarOpen ? 'px-4 py-4' : 'p-3 justify-center'} rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-all`}>
-            <FolderOpen className="w-6 h-6 shrink-0" />
-            {isSidebarOpen && <span className="whitespace-nowrap">My Files</span>}
-          </Link>
-          <Link href="/starred" className={`flex items-center gap-4 ${isSidebarOpen ? 'px-4 py-4' : 'p-3 justify-center'} rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-all`}>
-            <Star className="w-6 h-6 shrink-0" />
-            {isSidebarOpen && <span className="whitespace-nowrap">Starred</span>}
-          </Link>
-          <Link href="/recent" className={`flex items-center gap-4 ${isSidebarOpen ? 'px-4 py-4' : 'p-3 justify-center'} rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-all`}>
-            <Clock className="w-6 h-6 shrink-0" />
-            {isSidebarOpen && <span className="whitespace-nowrap">Recent</span>}
-          </Link>
-          
-          <div className="pt-4 mt-4 border-t border-surface-variant">
-            <Link href="/settings" className={`flex items-center gap-4 ${isSidebarOpen ? 'px-4 py-4' : 'p-3 justify-center'} rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-all`}>
-              <Settings className="w-6 h-6 shrink-0" />
-              {isSidebarOpen && <span className="whitespace-nowrap">Settings</span>}
-            </Link>
-          </div>
-        </nav>
-      </aside>
+      <Sidebar />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative bg-surface-dark pb-16 md:pb-0">
@@ -144,7 +182,7 @@ export default function Dashboard() {
           <button className="w-10 h-10 rounded-xl bg-surface-variant flex items-center justify-center text-primary-blue">
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-bold tracking-tight text-white">MarkPDF</h1>
+          <h1 className="text-lg font-bold tracking-tight text-white">FileFlip</h1>
           <div className="w-10 h-10"></div> {/* Spacer for centering */}
         </header>
 
@@ -185,8 +223,8 @@ export default function Dashboard() {
                 <Plus className="w-8 h-8 text-white" />
               </div>
               <div className="text-center z-10">
-                <h2 className="text-xl font-bold text-white mb-1">Create New PDF</h2>
-                <p className="text-sm text-text-secondary">Convert Markdown instantly</p>
+                <h2 className="text-xl font-bold text-white mb-1">Create New File</h2>
+                <p className="text-sm text-text-secondary">Choose file type to get started</p>
               </div>
             </button>
 
@@ -255,30 +293,81 @@ export default function Dashboard() {
               variants={containerVariants}
               initial="hidden"
               animate="visible"
+              key={isLoading ? 'loading' : files.length > 0 ? 'files' : 'templates'}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6"
             >
-              {files.length === 0 ? (
-                <div className="col-span-full py-12 flex flex-col items-center justify-center text-text-secondary">
-                  <FileText className="w-16 h-16 mb-4 opacity-20" />
-                  <p className="mb-8 text-center">No files yet. Create one to get started!</p>
-                  <div className="bg-surface-dark/50 p-6 rounded-2xl border border-white/5 max-w-md w-full">
-                    <h4 className="text-sm font-semibold text-text-primary mb-4 uppercase tracking-wider text-center">Supported Formats</h4>
-                    <ul className="grid grid-cols-2 gap-3 text-sm">
-                      <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary-blue"></div>Markdown (.md)</li>
-                      <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-accent-orange"></div>JSON (.json)</li>
-                      <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-accent-emerald"></div>YAML (.yaml / .yml)</li>
-                      <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-accent-purple"></div>XML (.xml)</li>
-                      <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>HTML (.html)</li>
-                      <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>CSV (.csv)</li>
-                      <li className="flex items-center gap-2 col-span-2 justify-center mt-1"><div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>Plain text (.txt, .log)</li>
-                    </ul>
-                  </div>
-                </div>
+              {isLoading ? (
+                // Loading skeleton
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <motion.div key={`skeleton-${i}`} variants={itemVariants}>
+                      <div className="m3-card bg-surface-variant p-4 md:p-6 h-auto md:h-64 animate-pulse">
+                        <div className="flex items-center gap-4 md:flex-col md:items-start">
+                          <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-surface-dark shrink-0"></div>
+                          <div className="flex-1 md:mt-4 space-y-2 w-full">
+                            <div className="h-4 bg-surface-dark rounded w-3/4"></div>
+                            <div className="h-3 bg-surface-dark rounded w-1/2"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </>
+              ) : files.length === 0 ? (
+                // Show template files matching the Android app
+                <>
+                  {([
+                    { id: 'template1', name: 'Sample Document.md', type: 'markdown' as const, content: '# Sample Document\n\nThis is a template for creating markdown files. Start writing your content here...' },
+                    { id: 'template2', name: 'Data Template.json', type: 'json' as const, content: '{\n  "name": "Example",\n  "description": "A sample JSON file",\n  "items": []\n}' },
+                    { id: 'template3', name: 'Config.yaml', type: 'yaml' as const, content: '# YAML Configuration\nname: Example\ndata:\n  - item1\n  - item2' },
+                    { id: 'template4', name: 'Data.xml', type: 'xml' as const, content: '<?xml version="1.0"?>\n<root>\n  <item>Example</item>\n</root>' },
+                    { id: 'template5', name: 'Web Page.html', type: 'html' as const, content: '<!DOCTYPE html>\n<html>\n<head>\n  <title>Sample Page</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>' },
+                    { id: 'template6', name: 'Notes.txt', type: 'text' as const, content: 'This is a sample text file.\n\nAdd your notes here...' },
+                    { id: 'template7', name: 'App.log', type: 'log' as const, content: '[INFO] Application started\n[INFO] Loading modules...' },
+                    { id: 'template8', name: 'Data.csv', type: 'csv' as const, content: 'Name,Value,Category\nItem 1,100,A\nItem 2,200,B' },
+                  ]).map((file) => (
+                    <motion.div key={file.id} variants={itemVariants}>
+                      <div role="button" tabIndex={0} onClick={() => createFile(file.name, file.content, file.type)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); createFile(file.name, file.content, file.type); } }} className="m3-card bg-surface-variant p-4 md:p-6 flex flex-row md:flex-col justify-between items-center md:items-start h-auto md:h-64 cursor-pointer group w-full text-left">
+                        <div className="flex items-center md:items-start md:justify-between w-full md:w-auto gap-4 md:gap-0">
+                          <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-surface-dark flex items-center justify-center border border-white/5 transition-colors ${getFileColorClass(file.type)} shrink-0`}>
+                            {getFileIcon(file.type)}
+                          </div>
+                          <div className="flex-1 md:hidden">
+                            <h4 className={`text-base font-semibold text-text-primary mb-0.5 transition-colors truncate ${getFileTextColorClass(file.type)}`}>{file.name}</h4>
+                            <p className="text-xs text-text-secondary uppercase tracking-wider">
+                              Template
+                            </p>
+                          </div>
+                          <button className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-text-secondary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="hidden md:block mt-4 w-full">
+                          <h4 className={`text-lg font-semibold text-text-primary mb-1 transition-colors truncate ${getFileTextColorClass(file.type)}`}>{file.name}</h4>
+                          <p className="text-sm text-text-secondary mb-4 line-clamp-2">{file.content.substring(0, 100)}...</p>
+                          <div className="flex items-center gap-2 text-xs text-text-secondary font-medium uppercase tracking-wider">
+                            <span>Template</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {/* Create New File Card */}
+                  <motion.div variants={itemVariants}>
+                    <button onClick={handleCreateNew} className="w-full m3-card border-2 border-dashed border-surface-variant hover:border-primary-blue bg-transparent p-6 flex flex-col items-center justify-center h-64 cursor-pointer group transition-colors">
+                      <div className="w-16 h-16 rounded-full bg-surface-variant group-hover:bg-primary-blue flex items-center justify-center transition-colors mb-4 mx-auto mt-6">
+                        <Plus className="text-text-secondary group-hover:text-white w-8 h-8" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-text-secondary group-hover:text-primary-blue transition-colors text-center">Create New File</h4>
+                    </button>
+                  </motion.div>
+                </>
               ) : (
                 files.map((file) => (
                   <motion.div key={file.id} variants={itemVariants}>
-                    <Link href={`/editor?id=${file.id}`} className="m3-card bg-surface-variant p-4 md:p-6 flex flex-row md:flex-col justify-between items-center md:items-start h-auto md:h-64 cursor-pointer group block">
-                      <div className="flex items-center md:items-start md:justify-between w-full md:w-auto gap-4 md:gap-0">
+                    <div className="m3-card bg-surface-variant p-4 md:p-6 flex flex-row md:flex-col justify-between items-center md:items-start h-auto md:h-64 cursor-pointer group relative">
+                      <Link href={`/editor?id=${file.id}`} className="absolute inset-0 z-0" onClick={() => openFileInEditor(file.id)}></Link>
+                      <div className="flex items-center md:items-start md:justify-between w-full md:w-auto gap-4 md:gap-0 z-10">
                         <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-surface-dark flex items-center justify-center border border-white/5 transition-colors ${getFileColorClass(file.type)} shrink-0`}>
                           {getFileIcon(file.type)}
                         </div>
@@ -288,36 +377,175 @@ export default function Dashboard() {
                             {formatDistanceToNow(file.lastModified, { addSuffix: true })}
                           </p>
                         </div>
-                        <button className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-text-secondary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
+                        <div className="relative">
+                          <span role="button" tabIndex={0} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-text-secondary" onClick={(e) => handleMenuToggle(file.id, e)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setMenuFileId(prev => prev === file.id ? null : file.id); } }}>
+                            <MoreVertical className="w-5 h-5" />
+                          </span>
+                          {/* Context Menu */}
+                          {menuFileId === file.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setMenuFileId(null)}></div>
+                              <div className="absolute right-0 top-10 w-48 bg-surface-dark border border-surface-variant rounded-2xl shadow-xl z-50 overflow-hidden py-1">
+                                <button onClick={() => handleOpenInEditor(file.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-primary hover:bg-surface-variant transition-colors">
+                                  <ExternalLink className="w-4 h-4 text-primary-blue" /> Open in Editor
+                                </button>
+                                <button onClick={() => handleRenameStart(file.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-primary hover:bg-surface-variant transition-colors">
+                                  <Pencil className="w-4 h-4 text-accent-emerald" /> Rename
+                                </button>
+                                <button onClick={() => { setDeleteConfirmId(file.id); setMenuFileId(null); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors">
+                                  <Trash2 className="w-4 h-4" /> Delete
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="hidden md:block mt-4 w-full">
+                      <div className="hidden md:block mt-4 w-full z-10 pointer-events-none">
                         <h4 className={`text-lg font-semibold text-text-primary mb-1 transition-colors truncate ${getFileTextColorClass(file.type)}`}>{file.name}</h4>
                         <p className="text-sm text-text-secondary mb-4 line-clamp-2">{file.content.substring(0, 100)}...</p>
                         <div className="flex items-center gap-2 text-xs text-text-secondary font-medium uppercase tracking-wider">
                           <span>{formatDistanceToNow(file.lastModified, { addSuffix: true })}</span>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   </motion.div>
                 ))
               )}
 
-              {/* Create New File Card (Desktop Only) */}
-              <motion.div variants={itemVariants} className="hidden md:block">
-                <button onClick={handleCreateNew} className="w-full m3-card border-2 border-dashed border-surface-variant hover:border-primary-blue bg-transparent p-6 flex flex-col items-center justify-center h-64 cursor-pointer group transition-colors block">
-                  <div className="w-16 h-16 rounded-full bg-surface-variant group-hover:bg-primary-blue flex items-center justify-center transition-colors mb-4 mx-auto mt-6">
-                    <Plus className="text-text-secondary group-hover:text-white w-8 h-8" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-text-secondary group-hover:text-primary-blue transition-colors text-center">Create New File</h4>
-                </button>
-              </motion.div>
+              {/* Create New File Card (when files exist) */}
+              {!isLoading && files.length > 0 && (
+                <motion.div variants={itemVariants} className="hidden md:block">
+                  <button onClick={handleCreateNew} className="w-full m3-card border-2 border-dashed border-surface-variant hover:border-primary-blue bg-transparent p-6 flex flex-col items-center justify-center h-64 cursor-pointer group transition-colors">
+                    <div className="w-16 h-16 rounded-full bg-surface-variant group-hover:bg-primary-blue flex items-center justify-center transition-colors mb-4 mx-auto mt-6">
+                      <Plus className="text-text-secondary group-hover:text-white w-8 h-8" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-text-secondary group-hover:text-primary-blue transition-colors text-center">Create New File</h4>
+                  </button>
+                </motion.div>
+              )}
             </motion.div>
           </section>
         </div>
       </main>
       <BottomNav />
+
+      {/* File Type Selection Dialog */}
+      <AnimatePresence>
+        {showFileTypeDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center"
+            onClick={() => setShowFileTypeDialog(false)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-surface-dark w-full md:max-w-md md:rounded-3xl rounded-t-3xl border border-surface-variant overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 pb-2">
+                <h2 className="text-xl font-bold text-white">Choose File Type</h2>
+                <button
+                  onClick={() => setShowFileTypeDialog(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-variant flex items-center justify-center text-text-secondary transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* File Type List */}
+              <div className="px-6 pb-6 pt-2 space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {FILE_TYPES.map((ft) => (
+                  <button
+                    key={ft.type}
+                    onClick={() => handleFileTypeSelected(ft)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-2xl hover:bg-surface-variant text-left transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-surface-variant group-hover:bg-surface-dark flex items-center justify-center transition-colors">
+                        {getFileIcon(ft.type)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-text-primary">{ft.label}</p>
+                        <p className="text-xs text-text-secondary">.{ft.ext}</p>
+                      </div>
+                    </div>
+                    <Plus className="w-5 h-5 text-primary-blue opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Rename Dialog */}
+      <AnimatePresence>
+        {renameFileId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setRenameFileId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface-dark w-full max-w-sm rounded-3xl border border-surface-variant p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-lg font-bold text-white mb-4">Rename File</h2>
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSubmit(); }}
+                className="w-full h-12 px-4 rounded-xl bg-surface-variant border border-white/10 text-text-primary placeholder-text-secondary focus:ring-2 focus:ring-primary-blue outline-none"
+                placeholder="File name"
+              />
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setRenameFileId(null)} className="px-5 py-2.5 rounded-full text-sm font-medium text-text-secondary hover:bg-surface-variant transition-colors">Cancel</button>
+                <button onClick={handleRenameSubmit} className="px-5 py-2.5 rounded-full text-sm font-medium bg-primary-blue text-white hover:bg-primary-blue/90 transition-colors">Rename</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setDeleteConfirmId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface-dark w-full max-w-sm rounded-3xl border border-surface-variant p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-lg font-bold text-white mb-2">Delete File</h2>
+              <p className="text-sm text-text-secondary mb-6">Are you sure you want to delete &ldquo;{files.find(f => f.id === deleteConfirmId)?.name}&rdquo;? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setDeleteConfirmId(null)} className="px-5 py-2.5 rounded-full text-sm font-medium text-text-secondary hover:bg-surface-variant transition-colors">Cancel</button>
+                <button onClick={handleDeleteConfirm} className="px-5 py-2.5 rounded-full text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -360,7 +360,7 @@ private fun TutorialContent(onFinishClick: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = BackgroundDark),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Start Using MarkPDF", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Start Using FlipFile", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(32.dp))
             Row(horizontalArrangement = Arrangement.Center) {

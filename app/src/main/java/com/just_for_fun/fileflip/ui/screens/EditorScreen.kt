@@ -304,7 +304,7 @@ fun EditorScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        "MarkPDF",
+                        "Flip File",
                         color = TextWhite,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold
@@ -355,7 +355,7 @@ fun EditorScreen(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "MarkPDF",
+                                "FlipFile",
                                 color = TextWhite,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold

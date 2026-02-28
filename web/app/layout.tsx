@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css'; // Global styles
 import { FileProvider } from '@/lib/FileContext';
+import { SidebarProvider } from '@/lib/SidebarContext';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -22,9 +23,11 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en" className={`${inter.variable} ${robotoMono.variable}`} suppressHydrationWarning>
       <body className="font-sans" suppressHydrationWarning>
-        <FileProvider>
-          {children}
-        </FileProvider>
+        <SidebarProvider>
+          <FileProvider>
+            {children}
+          </FileProvider>
+        </SidebarProvider>
       </body>
     </html>
   );

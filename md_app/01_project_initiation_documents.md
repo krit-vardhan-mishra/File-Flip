@@ -1,7 +1,7 @@
 # Android App: MD to PDF Converter - Project Initiation Documents
 
 ## 1. Project Overview
-**Project Name:** "MarkPDF: Android Markdown to PDF Utility"
+**Project Name:** "FlipFile: Android Markdown to PDF Utility"
 **Type:** Mobile Application (Android Native)
 **Goal:** Create a blazing fast, offline-first utility that brings the "VS Code Markdown PDF" experience to mobile.
 
@@ -33,7 +33,7 @@ Users (Developers, Technical Writers, Students) often have Markdown (`.md`) note
 
 ### **Our Niche Strategy**
 While tools like **Markor** are great *editors*, they are not optimized for *publishing*.
-Our app **"MarkPDF"** will focus on:
+Our app **"FlipFile"** will focus on:
 1.  **One-Tap Conversion:** No deep menus. Open File -> Click Convert.
 2.  **Modern UI:** fully distinct Material 3 aesthetics (Dynamic Colors).
 3.  **Visual Styling:** Pre-packaged themes (GitHub, Dracula, Solarized) for the PDF output.

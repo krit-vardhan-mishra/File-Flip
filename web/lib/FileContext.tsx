@@ -1,32 +1,83 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { FileData, saveFileToDB, getFileFromDB, deleteFileFromDB, getAllFilesFromDB, generateId } from './store';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import {
+  FileData,
+  saveFileToDB,
+  deleteFileFromDB,
+  getAllFilesFromDB,
+  generateId,
+  saveOpenFileIds,
+  getOpenFileIds,
+  saveActiveFileId,
+  getActiveFileId,
+} from './store';
 
 interface FileContextType {
   files: FileData[];
+  isLoading: boolean;
   activeFileId: string | null;
   setActiveFileId: (id: string | null) => void;
+  openFileIds: string[];
+  hasUnsavedChanges: Record<string, boolean>;
   createFile: (name: string, content: string, type: FileData['type']) => Promise<FileData>;
   updateFile: (id: string, updates: Partial<FileData>) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
+  renameFile: (id: string, newName: string) => Promise<void>;
   openLocalFile: () => Promise<void>;
   saveLocalFile: (id: string) => Promise<void>;
   toggleStar: (id: string) => Promise<void>;
+  openFileInEditor: (id: string) => void;
+  closeFileInEditor: (id: string, force?: boolean) => boolean;
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined);
 
 export const FileProvider = ({ children }: { children: ReactNode }) => {
   const [files, setFiles] = useState<FileData[]>([]);
-  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeFileId, setActiveFileIdState] = useState<string | null>(null);
+  const [openFileIds, setOpenFileIdsState] = useState<string[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<Record<string, boolean>>({});
+  const [savedContent, setSavedContent] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadFiles = async () => {
-      const loadedFiles = await getAllFilesFromDB();
-      setFiles(loadedFiles.sort((a, b) => b.lastModified - a.lastModified));
+      try {
+        const loadedFiles = await getAllFilesFromDB();
+        const sorted = loadedFiles.sort((a, b) => b.lastModified - a.lastModified);
+        setFiles(sorted);
+
+        const storedOpenIds = await getOpenFileIds();
+        const validOpenIds = storedOpenIds.filter(id => sorted.some(f => f.id === id));
+        setOpenFileIdsState(validOpenIds);
+
+        const storedActiveId = await getActiveFileId();
+        if (storedActiveId && sorted.some(f => f.id === storedActiveId)) {
+          setActiveFileIdState(storedActiveId);
+        }
+
+        const contentMap: Record<string, string> = {};
+        sorted.forEach(f => { contentMap[f.id] = f.content; });
+        setSavedContent(contentMap);
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadFiles();
+  }, []);
+
+  const setOpenFileIds = useCallback((ids: string[] | ((prev: string[]) => string[])) => {
+    setOpenFileIdsState(prev => {
+      const next = typeof ids === 'function' ? ids(prev) : ids;
+      saveOpenFileIds(next);
+      return next;
+    });
+  }, []);
+
+  const setActiveFileId = useCallback((id: string | null) => {
+    setActiveFileIdState(id);
+    saveActiveFileId(id);
   }, []);
 
   const createFile = async (name: string, content: string, type: FileData['type']) => {
@@ -41,24 +92,54 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
     await saveFileToDB(newFile);
     setFiles(prev => [newFile, ...prev]);
     setActiveFileId(newFile.id);
+    setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
+    setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
     return newFile;
   };
 
   const updateFile = async (id: string, updates: Partial<FileData>) => {
     const file = files.find(f => f.id === id);
     if (!file) return;
-    
+
     const updatedFile = { ...file, ...updates, lastModified: Date.now() };
     await saveFileToDB(updatedFile);
     setFiles(prev => prev.map(f => f.id === id ? updatedFile : f));
+
+    if (updates.content !== undefined) {
+      const original = savedContent[id];
+      setHasUnsavedChanges(prev => ({ ...prev, [id]: updates.content !== original }));
+    }
   };
 
   const deleteFile = async (id: string) => {
     await deleteFileFromDB(id);
     setFiles(prev => prev.filter(f => f.id !== id));
+    setOpenFileIds(prev => prev.filter(fid => fid !== id));
+    setHasUnsavedChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
+    setSavedContent(prev => { const n = { ...prev }; delete n[id]; return n; });
     if (activeFileId === id) {
       setActiveFileId(null);
     }
+  };
+
+  const renameFile = async (id: string, newName: string) => {
+    const file = files.find(f => f.id === id);
+    if (!file) return;
+
+    const ext = newName.split('.').pop()?.toLowerCase() || '';
+    let type: FileData['type'] = file.type;
+    if (ext === 'md' || ext === 'markdown') type = 'markdown';
+    else if (ext === 'json') type = 'json';
+    else if (ext === 'html' || ext === 'htm') type = 'html';
+    else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
+    else if (ext === 'xml') type = 'xml';
+    else if (ext === 'log') type = 'log';
+    else if (ext === 'csv') type = 'csv';
+    else if (ext === 'txt') type = 'text';
+
+    const updatedFile = { ...file, name: newName, type, lastModified: Date.now() };
+    await saveFileToDB(updatedFile);
+    setFiles(prev => prev.map(f => f.id === id ? updatedFile : f));
   };
 
   const toggleStar = async (id: string) => {
@@ -77,20 +158,30 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
       const [fileHandle] = await (window as any).showOpenFilePicker({
         types: [
           {
-            description: 'Text Files',
+            description: 'Supported Files',
             accept: {
-              'text/plain': ['.txt', '.md', '.json', '.html', '.csv'],
+              'text/plain': ['.txt', '.md', '.log'],
+              'application/json': ['.json'],
+              'text/html': ['.html'],
+              'text/yaml': ['.yaml', '.yml'],
+              'application/xml': ['.xml'],
+              'text/csv': ['.csv'],
             },
           },
         ],
       });
       const file = await fileHandle.getFile();
       const content = await file.text();
-      
+
       let type: FileData['type'] = 'text';
-      if (file.name.endsWith('.md')) type = 'markdown';
-      else if (file.name.endsWith('.json')) type = 'json';
-      else if (file.name.endsWith('.html')) type = 'html';
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (ext === 'md' || ext === 'markdown') type = 'markdown';
+      else if (ext === 'json') type = 'json';
+      else if (ext === 'html' || ext === 'htm') type = 'html';
+      else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
+      else if (ext === 'xml') type = 'xml';
+      else if (ext === 'log') type = 'log';
+      else if (ext === 'csv') type = 'csv';
 
       const newFile: FileData = {
         id: generateId(),
@@ -101,10 +192,12 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
         isStarred: false,
         handle: fileHandle,
       };
-      
+
       await saveFileToDB(newFile);
       setFiles(prev => [newFile, ...prev]);
       setActiveFileId(newFile.id);
+      setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
+      setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
     } catch (err) {
       console.error(err);
     }
@@ -125,33 +218,63 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
         handle = await (window as any).showSaveFilePicker({
           suggestedName: file.name,
           types: [{
-            description: 'Text Files',
-            accept: { 'text/plain': ['.txt', '.md', '.json', '.html'] },
+            description: 'Supported Files',
+            accept: { 'text/plain': ['.txt', '.md', '.json', '.html', '.yaml', '.yml', '.xml', '.log', '.csv'] },
           }],
         });
       }
-      
+
       const writable = await handle.createWritable();
       await writable.write(file.content);
       await writable.close();
-      
+
       await updateFile(id, { handle });
+      setSavedContent(prev => ({ ...prev, [id]: file.content }));
+      setHasUnsavedChanges(prev => ({ ...prev, [id]: false }));
     } catch (err) {
       console.error(err);
     }
   };
 
+  const openFileInEditor = useCallback((id: string) => {
+    setOpenFileIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    setActiveFileId(id);
+  }, [setOpenFileIds, setActiveFileId]);
+
+  const closeFileInEditor = useCallback((id: string, force = false): boolean => {
+    if (!force && hasUnsavedChanges[id]) {
+      return false;
+    }
+    setOpenFileIds(prev => {
+      const next = prev.filter(fid => fid !== id);
+      if (activeFileId === id) {
+        const closedIdx = prev.indexOf(id);
+        const newActive = next[Math.min(closedIdx, next.length - 1)] || null;
+        setActiveFileId(newActive);
+      }
+      return next;
+    });
+    setHasUnsavedChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
+    return true;
+  }, [hasUnsavedChanges, activeFileId, setOpenFileIds, setActiveFileId]);
+
   return (
     <FileContext.Provider value={{
       files,
+      isLoading,
       activeFileId,
       setActiveFileId,
+      openFileIds,
+      hasUnsavedChanges,
       createFile,
       updateFile,
       deleteFile,
+      renameFile,
       openLocalFile,
       saveLocalFile,
-      toggleStar
+      toggleStar,
+      openFileInEditor,
+      closeFileInEditor,
     }}>
       {children}
     </FileContext.Provider>

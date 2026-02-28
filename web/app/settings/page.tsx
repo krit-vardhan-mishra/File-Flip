@@ -19,48 +19,13 @@ import {
   Palette
 } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
+import Sidebar from '@/components/Sidebar';
 
 export default function SettingsPage() {
 
   return (
     <div className="h-screen flex overflow-hidden selection:bg-primary-blue selection:text-white bg-md-sys-color-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-20 lg:w-72 flex-shrink-0 flex-col border-r border-surface-variant bg-surface-dark transition-all duration-300">
-        <div className="h-20 flex items-center px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-blue to-accent-emerald flex items-center justify-center shadow-lg shadow-primary-blue/20">
-              <FileText className="text-white w-6 h-6" />
-            </div>
-            <span className="text-xl font-bold tracking-tight hidden lg:block">MarkPDF</span>
-          </div>
-        </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link href="/" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <LayoutGrid className="w-6 h-6" />
-            <span className="hidden lg:block">Dashboard</span>
-          </Link>
-          <Link href="/library" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <FolderOpen className="w-6 h-6" />
-            <span className="hidden lg:block">My Files</span>
-          </Link>
-          <Link href="/starred" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <Star className="w-6 h-6" />
-            <span className="hidden lg:block">Starred</span>
-          </Link>
-          <Link href="/recent" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <Clock className="w-6 h-6" />
-            <span className="hidden lg:block">Recent</span>
-          </Link>
-          
-          <div className="pt-4 mt-4 border-t border-surface-variant">
-            <Link href="/settings" className="flex items-center gap-4 px-4 py-4 rounded-full bg-primary-container text-primary-blue font-medium">
-              <Settings className="w-6 h-6" />
-              <span className="hidden lg:block">Settings</span>
-            </Link>
-          </div>
-        </nav>
-      </aside>
+      <Sidebar />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative bg-surface-dark pb-16 md:pb-0">
@@ -185,7 +150,7 @@ export default function SettingsPage() {
             </motion.section>
 
             <div className="text-center pt-8 pb-4">
-              <p className="text-sm text-text-secondary">MarkPDF v1.0.0</p>
+              <p className="text-sm text-text-secondary">FileFlip v1.0.0</p>
               <p className="text-xs text-text-secondary/50 mt-1">Built with Next.js & Tailwind CSS</p>
             </div>
 

@@ -365,7 +365,7 @@ fun SettingsScreen(navController: NavController) {
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "MARKPDF",
+                        "FlipFile",
                         color = TextWhite,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,

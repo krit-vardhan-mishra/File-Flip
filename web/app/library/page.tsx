@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'motion/react';
+import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileText, 
   FolderOpen, 
@@ -17,19 +19,37 @@ import {
   Braces,
   Code,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  FileCode2,
+  FileSpreadsheet,
+  FileCog,
+  ScrollText,
+  Pencil,
+  Trash2,
+  ExternalLink
 } from 'lucide-react';
 import { useFiles } from '@/lib/FileContext';
 import { formatDistanceToNow } from 'date-fns';
 import BottomNav from '@/components/BottomNav';
+import Sidebar from '@/components/Sidebar';
 
 export default function Library() {
-  const { files, toggleStar, deleteFile } = useFiles();
+  const router = useRouter();
+  const { files, toggleStar, deleteFile, renameFile, openFileInEditor } = useFiles();
+  const [menuFileId, setMenuFileId] = useState<string | null>(null);
+  const [renameFileId, setRenameFileId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const getFileIcon = (type: string) => {
     switch (type) {
-      case 'json': return <Braces className="text-accent-orange w-6 h-6 md:w-8 md:h-8" />;
-      case 'html': return <Code className="text-accent-purple w-6 h-6 md:w-8 md:h-8" />;
+      case 'markdown': return <FileText className="text-primary-blue w-6 h-6 md:w-8 md:h-8" />;
+      case 'json': return <Braces className="text-accent-emerald w-6 h-6 md:w-8 md:h-8" />;
+      case 'yaml': return <FileCog className="text-accent-purple w-6 h-6 md:w-8 md:h-8" />;
+      case 'xml': return <Code className="text-amber-700 w-6 h-6 md:w-8 md:h-8" />;
+      case 'html': return <FileCode2 className="text-pink-500 w-6 h-6 md:w-8 md:h-8" />;
+      case 'csv': return <FileSpreadsheet className="text-green-500 w-6 h-6 md:w-8 md:h-8" />;
+      case 'log': return <ScrollText className="text-blue-400 w-6 h-6 md:w-8 md:h-8" />;
       case 'text': return <FileText className="text-gray-400 w-6 h-6 md:w-8 md:h-8" />;
       default: return <FileText className="text-primary-blue w-6 h-6 md:w-8 md:h-8" />;
     }
@@ -37,8 +57,13 @@ export default function Library() {
 
   const getFileColorClass = (type: string) => {
     switch (type) {
-      case 'json': return 'group-hover:border-accent-orange/30';
-      case 'html': return 'group-hover:border-accent-purple/30';
+      case 'markdown': return 'group-hover:border-primary-blue/30';
+      case 'json': return 'group-hover:border-accent-emerald/30';
+      case 'yaml': return 'group-hover:border-accent-purple/30';
+      case 'xml': return 'group-hover:border-amber-700/30';
+      case 'html': return 'group-hover:border-pink-500/30';
+      case 'csv': return 'group-hover:border-green-500/30';
+      case 'log': return 'group-hover:border-blue-400/30';
       case 'text': return 'group-hover:border-gray-400/30';
       default: return 'group-hover:border-primary-blue/30';
     }
@@ -46,8 +71,13 @@ export default function Library() {
 
   const getFileTextColorClass = (type: string) => {
     switch (type) {
-      case 'json': return 'group-hover:text-accent-orange';
-      case 'html': return 'group-hover:text-accent-purple';
+      case 'markdown': return 'group-hover:text-primary-blue';
+      case 'json': return 'group-hover:text-accent-emerald';
+      case 'yaml': return 'group-hover:text-accent-purple';
+      case 'xml': return 'group-hover:text-amber-700';
+      case 'html': return 'group-hover:text-pink-500';
+      case 'csv': return 'group-hover:text-green-500';
+      case 'log': return 'group-hover:text-blue-400';
       case 'text': return 'group-hover:text-white';
       default: return 'group-hover:text-primary-blue';
     }
@@ -55,43 +85,7 @@ export default function Library() {
 
   return (
     <div className="h-screen flex overflow-hidden selection:bg-primary-blue selection:text-white bg-md-sys-color-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-20 lg:w-72 flex-shrink-0 flex-col border-r border-surface-variant bg-surface-dark transition-all duration-300">
-        <div className="h-20 flex items-center px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-blue to-accent-emerald flex items-center justify-center shadow-lg shadow-primary-blue/20">
-              <FileText className="text-white w-6 h-6" />
-            </div>
-            <span className="text-xl font-bold tracking-tight hidden lg:block">MarkPDF</span>
-          </div>
-        </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link href="/" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <LayoutGrid className="w-6 h-6" />
-            <span className="hidden lg:block">Dashboard</span>
-          </Link>
-          <Link href="/library" className="flex items-center gap-4 px-4 py-4 rounded-full bg-primary-container text-primary-blue font-medium">
-            <FolderOpen className="w-6 h-6" />
-            <span className="hidden lg:block">My Files</span>
-          </Link>
-          <Link href="/starred" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <Star className="w-6 h-6" />
-            <span className="hidden lg:block">Starred</span>
-          </Link>
-          <Link href="/recent" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-            <Clock className="w-6 h-6" />
-            <span className="hidden lg:block">Recent</span>
-          </Link>
-          
-          <div className="pt-4 mt-4 border-t border-surface-variant">
-            <Link href="/settings" className="flex items-center gap-4 px-4 py-4 rounded-full hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors">
-              <Settings className="w-6 h-6" />
-              <span className="hidden lg:block">Settings</span>
-            </Link>
-          </div>
-        </nav>
-      </aside>
+      <Sidebar />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative bg-surface-dark pb-16 md:pb-0">
@@ -159,7 +153,7 @@ export default function Library() {
             ) : (
               files.map((file) => (
                 <motion.div key={file.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                  <div className="m3-card bg-surface-variant p-4 md:p-6 flex flex-row md:flex-col justify-between items-center md:items-start h-auto md:h-64 group block relative">
+                  <div className="m3-card bg-surface-variant p-4 md:p-6 flex flex-row md:flex-col justify-between items-center md:items-start h-auto md:h-64 group relative">
                     <Link href={`/editor?id=${file.id}`} className="absolute inset-0 z-0"></Link>
                     <div className="flex items-center md:items-start md:justify-between w-full md:w-auto gap-4 md:gap-0 z-10">
                       <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-surface-dark flex items-center justify-center border border-white/5 transition-colors ${getFileColorClass(file.type)} shrink-0`}>
@@ -171,7 +165,7 @@ export default function Library() {
                           {formatDistanceToNow(file.lastModified, { addSuffix: true })}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 relative">
                         <button 
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleStar(file.id); }}
                           className={`w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors ${file.isStarred ? 'text-accent-orange' : 'text-text-secondary'}`}
@@ -179,11 +173,55 @@ export default function Library() {
                           <Star className={`w-5 h-5 ${file.isStarred ? 'fill-accent-orange' : ''}`} />
                         </button>
                         <button 
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteFile(file.id); }}
-                          className="w-8 h-8 rounded-full hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center text-text-secondary transition-colors"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuFileId(menuFileId === file.id ? null : file.id); }}
+                          className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-text-secondary transition-colors"
                         >
                           <MoreVertical className="w-5 h-5" />
                         </button>
+
+                        {/* Context Menu */}
+                        {menuFileId === file.id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuFileId(null); }} />
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-surface-dark border border-white/10 rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault(); e.stopPropagation();
+                                  openFileInEditor(file.id);
+                                  router.push(`/editor?id=${file.id}`);
+                                  setMenuFileId(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-primary hover:bg-white/5 transition-colors"
+                              >
+                                <ExternalLink className="w-4 h-4 text-text-secondary" />
+                                Open in Editor
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault(); e.stopPropagation();
+                                  setRenameFileId(file.id);
+                                  setRenameValue(file.name);
+                                  setMenuFileId(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-primary hover:bg-white/5 transition-colors"
+                              >
+                                <Pencil className="w-4 h-4 text-text-secondary" />
+                                Rename
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault(); e.stopPropagation();
+                                  setDeleteConfirmId(file.id);
+                                  setMenuFileId(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="hidden md:block mt-4 w-full z-10 pointer-events-none">
@@ -200,6 +238,107 @@ export default function Library() {
           </motion.div>
         </div>
       </main>
+
+      {/* Rename Dialog */}
+      <AnimatePresence>
+        {renameFileId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setRenameFileId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              className="bg-surface-variant rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-white/10"
+            >
+              <h3 className="text-lg font-semibold text-text-primary mb-4">Rename File</h3>
+              <input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && renameValue.trim()) {
+                    renameFile(renameFileId, renameValue.trim());
+                    setRenameFileId(null);
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-xl bg-surface-dark border border-white/10 text-text-primary placeholder-text-secondary focus:ring-2 focus:ring-primary-blue outline-none"
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end mt-4">
+                <button
+                  onClick={() => setRenameFileId(null)}
+                  className="px-4 py-2 rounded-full text-sm font-medium text-text-secondary hover:bg-white/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (renameValue.trim()) {
+                      renameFile(renameFileId, renameValue.trim());
+                      setRenameFileId(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-full text-sm font-medium bg-primary-blue text-white hover:bg-primary-blue/90 transition-colors"
+                >
+                  Rename
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {deleteConfirmId && (() => {
+          const fileToDelete = files.find(f => f.id === deleteConfirmId);
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="bg-surface-variant rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-white/10"
+              >
+                <h3 className="text-lg font-semibold text-text-primary mb-2">Delete File</h3>
+                <p className="text-sm text-text-secondary mb-6">
+                  Are you sure you want to delete &ldquo;{fileToDelete?.name}&rdquo;? This action cannot be undone.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setDeleteConfirmId(null)}
+                    className="px-4 py-2 rounded-full text-sm font-medium text-text-secondary hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteFile(deleteConfirmId);
+                      setDeleteConfirmId(null);
+                    }}
+                    className="px-4 py-2 rounded-full text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
       <BottomNav />
     </div>
   );
