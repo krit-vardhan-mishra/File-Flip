@@ -14,7 +14,8 @@ import {
   MoreVertical,
   Braces,
   Code,
-  ChevronLeft
+  ChevronLeft,
+  CloudUpload
 } from 'lucide-react';
 import { useFiles } from '@/lib/FileContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,10 +23,11 @@ import BottomNav from '@/components/BottomNav';
 import Sidebar from '@/components/Sidebar';
 
 export default function Recent() {
-  const { files, toggleStar, deleteFile } = useFiles();
+  const { files, isLoading, toggleStar, deleteFile, openLocalFile } = useFiles();
 
-  // Files are already sorted by lastModified in FileContext
-  const recentFiles = files.slice(0, 10);
+  // Files are already sorted by lastModified in FileContext (newest first)
+  // Just ensure we have the most recent 10
+  const recentFiles = [...files].sort((a, b) => b.lastModified - a.lastModified).slice(0, 10);
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -78,6 +80,13 @@ export default function Recent() {
             </h1>
           </div>
           <div className="flex items-center gap-4 ml-6">
+            <button 
+              onClick={openLocalFile}
+              className="m3-button h-12 px-6 bg-surface-variant hover:bg-surface-dark text-white font-semibold flex items-center gap-2 border border-white/10"
+            >
+              <CloudUpload className="w-5 h-5" />
+              Upload
+            </button>
             <div className="relative group w-64">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary group-focus-within:text-primary-blue transition-colors" />
               <input 
@@ -107,7 +116,24 @@ export default function Recent() {
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6"
           >
-            {recentFiles.length === 0 ? (
+            {isLoading ? (
+              // Loading skeleton
+              <>
+                {[1, 2, 3, 4].map((i) => (
+                  <motion.div key={`skeleton-${i}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="m3-card bg-surface-variant p-4 md:p-6 h-auto md:h-64 animate-pulse">
+                      <div className="flex items-center md:flex-col md:items-start">
+                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-surface-dark shrink-0"></div>
+                        <div className="flex-1 md:mt-4 space-y-2 w-full">
+                          <div className="h-4 bg-surface-dark rounded w-3/4"></div>
+                          <div className="h-3 bg-surface-dark rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </>
+            ) : recentFiles.length === 0 ? (
               <div className="col-span-full py-12 flex flex-col items-center justify-center text-text-secondary">
                 <Clock className="w-16 h-16 mb-4 opacity-20" />
                 <p>No recent files.</p>

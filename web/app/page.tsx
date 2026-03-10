@@ -32,7 +32,8 @@ import {
   ScrollText,
   Pencil,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Link2
 } from 'lucide-react';
 import { useFiles } from '@/lib/FileContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -52,9 +53,12 @@ const FILE_TYPES = [
 ];
 
 export default function Dashboard() {
-  const { files, isLoading, createFile, openLocalFile, deleteFile, renameFile, openFileInEditor } = useFiles();
+  const { files, isLoading, createFile, openLocalFile, openUrlFile, deleteFile, renameFile, openFileInEditor } = useFiles();
   const router = useRouter();
   const [showFileTypeDialog, setShowFileTypeDialog] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showUrlDialog, setShowUrlDialog] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
   const [menuFileId, setMenuFileId] = useState<string | null>(null);
   const [renameFileId, setRenameFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -62,6 +66,38 @@ export default function Dashboard() {
 
   const handleCreateNew = () => {
     setShowFileTypeDialog(true);
+  };
+
+  const handleUploadFile = () => {
+    setShowCreateMenu(false);
+    openLocalFile();
+  };
+
+  const handleCreateNewClick = () => {
+    setShowCreateMenu(false);
+    setShowFileTypeDialog(true);
+  };
+
+  const handleOpenFromUrl = () => {
+    setShowCreateMenu(false);
+    setShowUrlDialog(true);
+  };
+
+  const handleUrlSubmit = async () => {
+    if (!urlInput.trim()) return;
+    
+    // Add https:// if no protocol specified
+    let url = urlInput.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    
+    setShowUrlDialog(false);
+    const newFile = await openUrlFile(url);
+    if (newFile) {
+      router.push(`/editor?id=${newFile.id}`);
+    }
+    setUrlInput('');
   };
 
   const handleFileTypeSelected = async (ft: typeof FILE_TYPES[number]) => {
@@ -203,10 +239,70 @@ export default function Dashboard() {
               <Bell className="w-6 h-6" />
               <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface-dark"></span>
             </button>
-            <button onClick={handleCreateNew} className="m3-button h-12 px-6 bg-primary-blue hover:bg-[#0B8AC9] text-white font-semibold flex items-center gap-2 shadow-lg shadow-primary-blue/30">
-              <Plus className="w-5 h-5" />
-              New File
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowCreateMenu(!showCreateMenu)}
+                className="m3-button h-12 px-6 bg-primary-blue hover:bg-[#0B8AC9] text-white font-semibold flex items-center gap-2 shadow-lg shadow-primary-blue/30"
+              >
+                <Plus className="w-5 h-5" />
+                Create
+              </button>
+              {/* Dropdown Menu */}
+              <AnimatePresence>
+                {showCreateMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute right-0 top-full mt-2 w-56 bg-surface-dark border border-surface-variant rounded-2xl shadow-xl z-50 overflow-hidden"
+                  >
+                    <button
+                      onClick={handleCreateNewClick}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-surface-variant transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-primary-blue/20 flex items-center justify-center">
+                        <Plus className="w-5 h-5 text-primary-blue" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold">Create New File</p>
+                        <p className="text-xs text-text-secondary">Start from scratch</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleUploadFile}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-surface-variant transition-colors border-t border-surface-variant"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-accent-emerald/20 flex items-center justify-center">
+                        <CloudUpload className="w-5 h-5 text-accent-emerald" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold">Upload File</p>
+                        <p className="text-xs text-text-secondary">Import from device</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleOpenFromUrl}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-surface-variant transition-colors border-t border-surface-variant"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-accent-purple/20 flex items-center justify-center">
+                        <Link2 className="w-5 h-5 text-accent-purple" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold">Open from URL</p>
+                        <p className="text-xs text-text-secondary">View file temporarily</p>
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {/* Click outside to close */}
+              {showCreateMenu && (
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowCreateMenu(false)}
+                />
+              )}
+            </div>
           </div>
         </header>
 
@@ -214,19 +310,69 @@ export default function Dashboard() {
           
           {/* Mobile Actions */}
           <div className="md:hidden mt-6 mb-8 space-y-4">
-            <button 
-              onClick={handleCreateNew}
-              className="w-full rounded-3xl bg-surface-variant border border-primary-blue/20 p-8 flex flex-col items-center justify-center gap-4 relative overflow-hidden group shadow-lg shadow-primary-blue/5"
-            >
-              <div className="absolute inset-0 bg-gradient-to-b from-primary-blue/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="w-16 h-16 rounded-full bg-primary-blue flex items-center justify-center shadow-lg shadow-primary-blue/40">
-                <Plus className="w-8 h-8 text-white" />
-              </div>
-              <div className="text-center z-10">
-                <h2 className="text-xl font-bold text-white mb-1">Create New File</h2>
-                <p className="text-sm text-text-secondary">Choose file type to get started</p>
-              </div>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowCreateMenu(!showCreateMenu)}
+                className="w-full rounded-3xl bg-surface-variant border border-primary-blue/20 p-8 flex flex-col items-center justify-center gap-4 relative overflow-hidden group shadow-lg shadow-primary-blue/5"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-primary-blue/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div className="w-16 h-16 rounded-full bg-primary-blue flex items-center justify-center shadow-lg shadow-primary-blue/40">
+                  <Plus className="w-8 h-8 text-white" />
+                </div>
+                <div className="text-center z-10">
+                  <h2 className="text-xl font-bold text-white mb-1">Create New</h2>
+                  <p className="text-sm text-text-secondary">Choose an option</p>
+                </div>
+              </button>
+              {/* Mobile Dropdown */}
+              <AnimatePresence>
+                {showCreateMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-surface-dark border border-surface-variant rounded-2xl shadow-xl z-50 overflow-hidden"
+                  >
+                    <button
+                      onClick={handleCreateNewClick}
+                      className="w-full flex items-center gap-3 px-4 py-4 text-text-primary hover:bg-surface-variant transition-colors"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-primary-blue/20 flex items-center justify-center">
+                        <Plus className="w-6 h-6 text-primary-blue" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-lg">Create New File</p>
+                        <p className="text-sm text-text-secondary">Start from scratch</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleUploadFile}
+                      className="w-full flex items-center gap-3 px-4 py-4 text-text-primary hover:bg-surface-variant transition-colors border-t border-surface-variant"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-accent-emerald/20 flex items-center justify-center">
+                        <CloudUpload className="w-6 h-6 text-accent-emerald" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-lg">Upload File</p>
+                        <p className="text-sm text-text-secondary">Import from device</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleOpenFromUrl}
+                      className="w-full flex items-center gap-3 px-4 py-4 text-text-primary hover:bg-surface-variant transition-colors border-t border-surface-variant"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-accent-purple/20 flex items-center justify-center">
+                        <Link2 className="w-6 h-6 text-accent-purple" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-lg">Open from URL</p>
+                        <p className="text-sm text-text-secondary">View file temporarily</p>
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <button onClick={openLocalFile} className="rounded-2xl bg-surface-variant p-4 flex items-center justify-center gap-3 text-white font-medium hover:bg-surface-variant/80 transition-colors">
@@ -541,6 +687,68 @@ export default function Dashboard() {
               <div className="flex justify-end gap-3">
                 <button onClick={() => setDeleteConfirmId(null)} className="px-5 py-2.5 rounded-full text-sm font-medium text-text-secondary hover:bg-surface-variant transition-colors">Cancel</button>
                 <button onClick={handleDeleteConfirm} className="px-5 py-2.5 rounded-full text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* URL Dialog */}
+      <AnimatePresence>
+        {showUrlDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center"
+            onClick={() => setShowUrlDialog(false)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-surface-dark w-full md:max-w-md md:rounded-3xl rounded-t-3xl border border-surface-variant overflow-hidden p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                  <Link2 className="w-6 h-6 text-accent-purple" />
+                  Open from URL
+                </h2>
+                <button
+                  onClick={() => setShowUrlDialog(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-variant flex items-center justify-center text-text-secondary transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-text-secondary mb-4">
+                Enter a URL to view a file temporarily. The file will not be saved to your library.
+              </p>
+              <input
+                type="url"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleUrlSubmit(); }}
+                placeholder="https://example.com/file.md"
+                className="w-full h-12 px-4 rounded-xl bg-surface-variant border border-white/10 text-text-primary placeholder-text-secondary focus:ring-2 focus:ring-accent-purple outline-none"
+                autoFocus
+              />
+              <div className="flex justify-end gap-3 mt-6">
+                <button 
+                  onClick={() => setShowUrlDialog(false)} 
+                  className="px-5 py-2.5 rounded-full text-sm font-medium text-text-secondary hover:bg-surface-variant transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleUrlSubmit} 
+                  disabled={!urlInput.trim()}
+                  className="px-5 py-2.5 rounded-full text-sm font-medium bg-accent-purple text-white hover:bg-accent-purple/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Open File
+                </button>
               </div>
             </motion.div>
           </motion.div>

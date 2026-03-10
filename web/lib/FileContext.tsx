@@ -25,6 +25,7 @@ interface FileContextType {
   deleteFile: (id: string) => Promise<void>;
   renameFile: (id: string, newName: string) => Promise<void>;
   openLocalFile: () => Promise<void>;
+  openUrlFile: (url: string, name?: string) => Promise<FileData | null>;
   saveLocalFile: (id: string) => Promise<void>;
   toggleStar: (id: string) => Promise<void>;
   openFileInEditor: (id: string) => void;
@@ -149,29 +150,14 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const openLocalFile = async () => {
-    if (!('showOpenFilePicker' in window)) {
-      alert('File System Access API is not supported in this browser.');
-      return;
-    }
-    try {
-      const [fileHandle] = await (window as any).showOpenFilePicker({
-        types: [
-          {
-            description: 'Supported Files',
-            accept: {
-              'text/plain': ['.txt', '.md', '.log'],
-              'application/json': ['.json'],
-              'text/html': ['.html'],
-              'text/yaml': ['.yaml', '.yml'],
-              'application/xml': ['.xml'],
-              'text/csv': ['.csv'],
-            },
-          },
-        ],
-      });
-      const file = await fileHandle.getFile();
-      const content = await file.text();
+  // Fallback file input handler for browsers without File System Access API
+  const handleFallbackFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const content = e.target?.result as string;
 
       let type: FileData['type'] = 'text';
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -190,7 +176,6 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
         type,
         lastModified: file.lastModified,
         isStarred: false,
-        handle: fileHandle,
       };
 
       await saveFileToDB(newFile);
@@ -198,8 +183,123 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
       setActiveFileId(newFile.id);
       setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
       setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
+    };
+    reader.readAsText(file);
+    
+    // Reset input so same file can be selected again
+    event.target.value = '';
+  };
+
+  // Open local file - with fallback for unsupported browsers
+  const openLocalFile = async () => {
+    // Try File System Access API first
+    if ('showOpenFilePicker' in window) {
+      try {
+        const [fileHandle] = await (window as any).showOpenFilePicker({
+          types: [
+            {
+              description: 'Supported Files',
+              accept: {
+                'text/plain': ['.txt', '.md', '.log'],
+                'application/json': ['.json'],
+                'text/html': ['.html'],
+                'text/yaml': ['.yaml', '.yml'],
+                'application/xml': ['.xml'],
+                'text/csv': ['.csv'],
+              },
+            },
+          ],
+        });
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+
+        let type: FileData['type'] = 'text';
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        if (ext === 'md' || ext === 'markdown') type = 'markdown';
+        else if (ext === 'json') type = 'json';
+        else if (ext === 'html' || ext === 'htm') type = 'html';
+        else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
+        else if (ext === 'xml') type = 'xml';
+        else if (ext === 'log') type = 'log';
+        else if (ext === 'csv') type = 'csv';
+
+        const newFile: FileData = {
+          id: generateId(),
+          name: file.name,
+          content,
+          type,
+          lastModified: file.lastModified,
+          isStarred: false,
+          handle: fileHandle,
+        };
+
+        await saveFileToDB(newFile);
+        setFiles(prev => [newFile, ...prev]);
+        setActiveFileId(newFile.id);
+        setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
+        setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
+      } catch (err) {
+        // User cancelled or error - do nothing
+        console.log('File picker cancelled or error:', err);
+      }
+    } else {
+      // Fallback: use hidden file input
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.txt,.md,.log,.json,.html,.yaml,.yml,.xml,.csv';
+      input.onchange = handleFallbackFileInput as any;
+      input.click();
+    }
+  };
+
+  // Open a file from URL - temporary, not saved to IndexedDB
+  const openUrlFile = async (url: string, name?: string): Promise<FileData | null> => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const content = await response.text();
+
+      // Determine file type from URL or content-type
+      let type: FileData['type'] = 'text';
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const ext = pathname.split('.').pop()?.toLowerCase() || '';
+      
+      if (ext === 'md' || ext === 'markdown') type = 'markdown';
+      else if (ext === 'json') type = 'json';
+      else if (ext === 'html' || ext === 'htm') type = 'html';
+      else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
+      else if (ext === 'xml') type = 'xml';
+      else if (ext === 'log') type = 'log';
+      else if (ext === 'csv') type = 'csv';
+      else if (ext === 'txt') type = 'text';
+
+      // Generate name from URL if not provided
+      const fileName = name || pathname.split('/').pop() || 'Untitled';
+
+      const newFile: FileData = {
+        id: generateId(),
+        name: fileName,
+        content,
+        type,
+        lastModified: Date.now(),
+        isStarred: false,
+        // No handle - this is a temporary file
+      };
+
+      // Add to files but DON'T save to IndexedDB (temporary)
+      setFiles(prev => [newFile, ...prev]);
+      setActiveFileId(newFile.id);
+      setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
+      setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
+      
+      return newFile;
     } catch (err) {
-      console.error(err);
+      console.error('Failed to open file from URL:', err);
+      alert('Failed to load file from URL. Please check the URL and try again.');
+      return null;
     }
   };
 
@@ -208,7 +308,18 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
     if (!file) return;
 
     if (!('showSaveFilePicker' in window)) {
-      alert('File System Access API is not supported in this browser.');
+      // Fallback: download file using blob URL
+      const blob = new Blob([file.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSavedContent(prev => ({ ...prev, [id]: file.content }));
+      setHasUnsavedChanges(prev => ({ ...prev, [id]: false }));
       return;
     }
 
@@ -271,6 +382,7 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
       deleteFile,
       renameFile,
       openLocalFile,
+      openUrlFile,
       saveLocalFile,
       toggleStar,
       openFileInEditor,
