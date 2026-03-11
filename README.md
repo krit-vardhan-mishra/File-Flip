@@ -2,6 +2,10 @@
 
 FileFlip is an offline-first Android app for editing, previewing and exporting text-based files. It provides a polished editor with syntax highlighting for Markdown, JSON, CSV, XML and other formats, an in-app preview powered by WebView, and professional GitHub-styled PDF export.
 
+> **Download the app**: Get the latest APK from the [Releases](https://github.com/krit-vardhan-mishra/File-Flip/releases) section.
+
+> **Live web app**: [https://file-flip-fawn.vercel.app/](https://file-flip-fawn.vercel.app/)
+
 **Short description**
 - **One-liner**: FileFlip — Offline Android editor & converter for Markdown, JSON, CSV and more with live preview and styled PDF export.
 
@@ -29,61 +33,3 @@ FileFlip is an offline-first Android app for editing, previewing and exporting t
 - HTML (.html)
 - CSV (.csv)
 - Plain text (.txt, .log)
-
-**Build & run (developer)**
-- Open the project in Android Studio or use the Gradle wrapper on Windows:
-
-```powershell
-# Build debug APK (Windows)
-.
-\gradlew.bat assembleDebug
-```
-
-- Or open the project in Android Studio and run the `app` module on a device/emulator.
-
-**Project structure & architecture**
-- Clean Architecture with `domain`, `data` and `presentation` layers.
-- `ViewModel` + `LiveData` / StateFlow for UI state handling.
-- Hilt for dependency injection and Kotlin Coroutines for async work.
-- UI follows Material Design 3 guidelines with dark theme support.
-
-**Developer notes & TODOs**
-- Implement undo/redo and advanced validation (JSON/YAML/XML) — TODOs referenced in `project_status.md` and `app/src/main/java/...`.
-- Unit and UI tests are not yet complete; add ViewModel and repository tests before major refactors.
-- Consider adding licensing (e.g., MIT) by creating a `LICENSE` file.
-
-**Contributing**
-- Open issues for bugs or feature requests.
-- Fork, work on a branch, then open a pull request against `main`.
-
-**References & docs**
-- Initial idea and design notes: [md_app/initial_idea.md](md_app/initial_idea.md)
-- Feature / planning docs: [md_app/what_the_will_have.md](md_app/what_the_will_have.md)
-- Project status: [project_status.md](project_status.md)
-
----
-
-**Deployment (Vercel)**
-- **Overview**: The `web` Next.js app can be deployed to Vercel. This repo includes a `vercel.json` that points Vercel to the `web` folder and a GitHub Actions workflow to automatically deploy on pushes to `main`.
-- **Files added**: [vercel.json](vercel.json), [.github/workflows/vercel-deploy.yml](.github/workflows/vercel-deploy.yml)
-- **Required repository secrets** (set these in your GitHub repo Settings → Secrets → Actions):
-	- `VERCEL_TOKEN` — a personal token from Vercel (see Vercel account settings).
-	- `VERCEL_ORG_ID` — (optional but recommended) your Vercel organization ID.
-	- `VERCEL_PROJECT_ID` — (optional but recommended) the Vercel project ID for this site.
-- **Manual deploy (local)**: you can also deploy from your machine by linking the project and running the deploy command from the `web` folder:
-
-```powershell
-# from repo root on Windows
-npm --prefix web install
-npx vercel --cwd web
-
-# to deploy production
-npx vercel --cwd web --prod
-```
-
-If you prefer linking first (one-time):
-
-```powershell
-# Run once to connect this repo to a Vercel project interactively
-npx vercel --cwd web
-```
