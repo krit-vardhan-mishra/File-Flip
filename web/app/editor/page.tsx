@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
@@ -176,13 +176,34 @@ function EditorContent() {
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
   const [closeConfirmFileId, setCloseConfirmFileId] = useState<string | null>(null);
 
+  const lastFileIdRef = useRef<string | null>(fileIdParam);
+
   useEffect(() => {
-    if (fileIdParam && files.some(f => f.id === fileIdParam)) {
-      openFileInEditor(fileIdParam);
-    } else if (openFileIds.length > 0 && !activeFileId) {
-      setActiveFileId(openFileIds[0]);
+    if (isLoading) return;
+
+    // Detect if URL changed (e.g., back/forward navigation)
+    const urlChanged = fileIdParam !== lastFileIdRef.current;
+
+    if (urlChanged && fileIdParam) {
+      if (files.some(f => f.id === fileIdParam)) {
+        openFileInEditor(fileIdParam);
+      }
+    } 
+    // If state changed internally (e.g., clicking a tab)
+    else if (activeFileId && activeFileId !== fileIdParam) {
+      router.push(`/editor?id=${activeFileId}`, { scroll: false });
     }
-  }, [fileIdParam, files, activeFileId, setActiveFileId, openFileInEditor, openFileIds]);
+    // Handle initial load or fallback
+    else if (!activeFileId && !fileIdParam && openFileIds.length > 0) {
+      setActiveFileId(openFileIds[0]);
+    } else if (fileIdParam && !activeFileId) {
+       if (files.some(f => f.id === fileIdParam)) {
+         openFileInEditor(fileIdParam);
+       }
+    }
+
+    lastFileIdRef.current = fileIdParam;
+  }, [fileIdParam, activeFileId, files, openFileIds, openFileInEditor, setActiveFileId, router, isLoading]);
 
   const activeFile = files.find(f => f.id === activeFileId);
   const openFiles = files.filter(f => openFileIds.includes(f.id));

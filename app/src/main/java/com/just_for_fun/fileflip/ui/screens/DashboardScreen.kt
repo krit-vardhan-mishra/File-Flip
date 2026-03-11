@@ -39,9 +39,11 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
@@ -60,6 +62,7 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -275,11 +278,30 @@ fun DashboardScreen(
                     )
                 )
                 NavigationDrawerItem(
+                    label = { Text("Visit Website") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://fileflip.vercel.app"))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                    icon = { Icon(Icons.Rounded.Language, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = PrimaryBlue.copy(alpha = 0.1f),
+                        unselectedContainerColor = Color.Transparent,
+                        selectedIconColor = PrimaryBlue,
+                        unselectedIconColor = TextGray,
+                        selectedTextColor = TextWhite,
+                        unselectedTextColor = TextGray
+                    )
+                )
+                NavigationDrawerItem(
                     label = { Text("GitHub Repository") },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/krit-vardhan-mishra/FileFlip"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/krit-vardhan-mishra/File-Flip"))
                         context.startActivity(intent)
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
@@ -1023,65 +1045,84 @@ fun TopNavigationBar(onMenuClick: () -> Unit) {
 
 @Composable
 fun HeroCreateSection(onCreateClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(160.dp)
-            .clickable { onCreateClick() }
-    ) {
-        // Glow Effect
+    val context = LocalContext.current
+    Column(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(4.dp) // Slight inset for glow to bleed out
-                .blur(20.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(PrimaryBlue.copy(alpha = 0.4f), Color(0xFF2563EB).copy(alpha = 0.4f))
-                    ),
-                    shape = RoundedCornerShape(24.dp)
-                )
-        )
-
-        // Card Content
-        Card(
-            modifier = Modifier.fillMaxSize(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.1f))
+                .fillMaxWidth()
+                .height(160.dp)
+                .clickable { onCreateClick() }
         ) {
-            Column(
+            // Glow Effect
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(4.dp) // Slight inset for glow to bleed out
+                    .blur(20.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(PrimaryBlue.copy(alpha = 0.4f), Color(0xFF2563EB).copy(alpha = 0.4f))
+                        ),
+                        shape = RoundedCornerShape(24.dp)
+                    )
+            )
+
+            // Card Content
+            Card(
                 modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.1f))
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .shadow(10.dp, CircleShape, spotColor = PrimaryBlue)
-                        .background(PrimaryBlue, CircleShape),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        tint = TextWhite,
-                        modifier = Modifier.size(32.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .shadow(10.dp, CircleShape, spotColor = PrimaryBlue)
+                            .background(PrimaryBlue, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = TextWhite,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Create New File",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Edit and convert to PDF",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextGray
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Create New File",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextWhite
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Edit and convert to PDF",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextGray
-                )
             }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        TextButton(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://fileflip.vercel.app")) // Replace with actual URL when deployed
+                context.startActivity(intent)
+            },
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text(
+                text = "Visit Website",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = PrimaryBlue
+            )
         }
     }
 }

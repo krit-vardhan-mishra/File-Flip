@@ -63,6 +63,46 @@ export default function Dashboard() {
   const [renameFileId, setRenameFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Check if the cursor is leaving the component and its children
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFile = e.dataTransfer.files[0];
+      
+      const newFile = await openLocalFile(droppedFile);
+      if (newFile) {
+        router.push(`/editor?id=${newFile.id}`);
+      }
+      
+      e.dataTransfer.clearData();
+    }
+  };
 
   const handleCreateNew = () => {
     setShowFileTypeDialog(true);
@@ -212,7 +252,30 @@ export default function Dashboard() {
       <Sidebar />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative bg-surface-dark pb-16 md:pb-0">
+      <main 
+        className="flex-1 flex flex-col h-screen overflow-hidden relative bg-surface-dark pb-16 md:pb-0"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+      >
+        <AnimatePresence>
+          {isDragging && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <div className="w-11/12 max-w-2xl h-64 md:h-80 border-4 border-dashed border-primary-blue rounded-3xl flex flex-col items-center justify-center pointer-events-none">
+                <CloudUpload className="w-16 h-16 text-primary-blue mb-4" />
+                <p className="text-xl md:text-2xl font-bold text-white">Drop the file to open it here</p>
+                <p className="text-base text-text-secondary mt-1">File will be added to your library</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Mobile Header */}
         <header className="md:hidden h-16 flex items-center justify-between px-4 flex-shrink-0 border-b border-surface-variant">
           <button className="w-10 h-10 rounded-xl bg-surface-variant flex items-center justify-center text-primary-blue">

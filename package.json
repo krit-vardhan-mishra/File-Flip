@@ -1,0 +1,16 @@
+{
+  "name": "fileflip-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FileFlip monorepo containing Android and Web applications",
+  "scripts": {
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:start": "npm --prefix web run start",
+    "web:lint": "npm --prefix web run lint",
+    "install:web": "npm --prefix web install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

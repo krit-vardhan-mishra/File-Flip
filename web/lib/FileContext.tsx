@@ -24,7 +24,7 @@ interface FileContextType {
   updateFile: (id: string, updates: Partial<FileData>) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
   renameFile: (id: string, newName: string) => Promise<void>;
-  openLocalFile: () => Promise<void>;
+  openLocalFile: (file?: File) => Promise<FileData | null>;
   openUrlFile: (url: string, name?: string) => Promise<FileData | null>;
   saveLocalFile: (id: string) => Promise<void>;
   toggleStar: (id: string) => Promise<void>;
@@ -150,48 +150,44 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Fallback file input handler for browsers without File System Access API
-  const handleFallbackFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const processFile = async (file: File, handle?: FileSystemFileHandle): Promise<FileData> => {
+    const content = await file.text();
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const content = e.target?.result as string;
+    let type: FileData['type'] = 'text';
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (ext === 'md' || ext === 'markdown') type = 'markdown';
+    else if (ext === 'json') type = 'json';
+    else if (ext === 'html' || ext === 'htm') type = 'html';
+    else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
+    else if (ext === 'xml') type = 'xml';
+    else if (ext === 'log') type = 'log';
+    else if (ext === 'csv') type = 'csv';
 
-      let type: FileData['type'] = 'text';
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      if (ext === 'md' || ext === 'markdown') type = 'markdown';
-      else if (ext === 'json') type = 'json';
-      else if (ext === 'html' || ext === 'htm') type = 'html';
-      else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
-      else if (ext === 'xml') type = 'xml';
-      else if (ext === 'log') type = 'log';
-      else if (ext === 'csv') type = 'csv';
-
-      const newFile: FileData = {
-        id: generateId(),
-        name: file.name,
-        content,
-        type,
-        lastModified: file.lastModified,
-        isStarred: false,
-      };
-
-      await saveFileToDB(newFile);
-      setFiles(prev => [newFile, ...prev]);
-      setActiveFileId(newFile.id);
-      setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
-      setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
+    const newFile: FileData = {
+      id: generateId(),
+      name: file.name,
+      content,
+      type,
+      lastModified: file.lastModified,
+      isStarred: false,
+      handle: handle,
     };
-    reader.readAsText(file);
-    
-    // Reset input so same file can be selected again
-    event.target.value = '';
-  };
+
+    await saveFileToDB(newFile);
+    setFiles(prev => [newFile, ...prev].sort((a, b) => b.lastModified - a.lastModified));
+    setActiveFileId(newFile.id);
+    setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
+    setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
+
+    return newFile;
+  }
 
   // Open local file - with fallback for unsupported browsers
-  const openLocalFile = async () => {
+  const openLocalFile = async (fileFromDrop?: File): Promise<FileData | null> => {
+    if (fileFromDrop) {
+      return processFile(fileFromDrop);
+    }
+    
     // Try File System Access API first
     if ('showOpenFilePicker' in window) {
       try {
@@ -202,7 +198,7 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
               accept: {
                 'text/plain': ['.txt', '.md', '.log'],
                 'application/json': ['.json'],
-                'text/html': ['.html'],
+                'text/html': ['.html', '.htm'],
                 'text/yaml': ['.yaml', '.yml'],
                 'application/xml': ['.xml'],
                 'text/csv': ['.csv'],
@@ -211,44 +207,32 @@ export const FileProvider = ({ children }: { children: ReactNode }) => {
           ],
         });
         const file = await fileHandle.getFile();
-        const content = await file.text();
-
-        let type: FileData['type'] = 'text';
-        const ext = file.name.split('.').pop()?.toLowerCase() || '';
-        if (ext === 'md' || ext === 'markdown') type = 'markdown';
-        else if (ext === 'json') type = 'json';
-        else if (ext === 'html' || ext === 'htm') type = 'html';
-        else if (ext === 'yaml' || ext === 'yml') type = 'yaml';
-        else if (ext === 'xml') type = 'xml';
-        else if (ext === 'log') type = 'log';
-        else if (ext === 'csv') type = 'csv';
-
-        const newFile: FileData = {
-          id: generateId(),
-          name: file.name,
-          content,
-          type,
-          lastModified: file.lastModified,
-          isStarred: false,
-          handle: fileHandle,
-        };
-
-        await saveFileToDB(newFile);
-        setFiles(prev => [newFile, ...prev]);
-        setActiveFileId(newFile.id);
-        setSavedContent(prev => ({ ...prev, [newFile.id]: content }));
-        setOpenFileIds(prev => prev.includes(newFile.id) ? prev : [...prev, newFile.id]);
+        return processFile(file, fileHandle);
       } catch (err) {
         // User cancelled or error - do nothing
         console.log('File picker cancelled or error:', err);
+        return null;
       }
     } else {
       // Fallback: use hidden file input
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.txt,.md,.log,.json,.html,.yaml,.yml,.xml,.csv';
-      input.onchange = handleFallbackFileInput as any;
-      input.click();
+      return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.txt,.md,.log,.json,.html,.yaml,.yml,.xml,.csv,.htm';
+        input.onchange = async (event) => {
+          const target = event.target as HTMLInputElement;
+          const file = target.files?.[0];
+          if (file) {
+            const newFile = await processFile(file);
+            resolve(newFile);
+          } else {
+            resolve(null);
+          }
+          // Reset input so same file can be selected again
+          target.value = '';
+        };
+        input.click();
+      });
     }
   };
 
