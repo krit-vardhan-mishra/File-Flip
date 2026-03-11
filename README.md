@@ -62,3 +62,28 @@ FileFlip is an offline-first Android app for editing, previewing and exporting t
 - Project status: [project_status.md](project_status.md)
 
 ---
+
+**Deployment (Vercel)**
+- **Overview**: The `web` Next.js app can be deployed to Vercel. This repo includes a `vercel.json` that points Vercel to the `web` folder and a GitHub Actions workflow to automatically deploy on pushes to `main`.
+- **Files added**: [vercel.json](vercel.json), [.github/workflows/vercel-deploy.yml](.github/workflows/vercel-deploy.yml)
+- **Required repository secrets** (set these in your GitHub repo Settings → Secrets → Actions):
+	- `VERCEL_TOKEN` — a personal token from Vercel (see Vercel account settings).
+	- `VERCEL_ORG_ID` — (optional but recommended) your Vercel organization ID.
+	- `VERCEL_PROJECT_ID` — (optional but recommended) the Vercel project ID for this site.
+- **Manual deploy (local)**: you can also deploy from your machine by linking the project and running the deploy command from the `web` folder:
+
+```powershell
+# from repo root on Windows
+npm --prefix web install
+npx vercel --cwd web
+
+# to deploy production
+npx vercel --cwd web --prod
+```
+
+If you prefer linking first (one-time):
+
+```powershell
+# Run once to connect this repo to a Vercel project interactively
+npx vercel --cwd web
+```
