@@ -81,7 +81,7 @@ export default function Recent() {
           </div>
           <div className="flex items-center gap-4 ml-6">
             <button 
-              onClick={openLocalFile}
+              onClick={() => openLocalFile()}
               className="m3-button h-12 px-6 bg-surface-variant hover:bg-surface-dark text-white font-semibold flex items-center gap-2 border border-white/10"
             >
               <CloudUpload className="w-5 h-5" />

@@ -438,7 +438,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={openLocalFile} className="rounded-2xl bg-surface-variant p-4 flex items-center justify-center gap-3 text-white font-medium hover:bg-surface-variant/80 transition-colors">
+              <button onClick={() => openLocalFile()} className="rounded-2xl bg-surface-variant p-4 flex items-center justify-center gap-3 text-white font-medium hover:bg-surface-variant/80 transition-colors">
                 <CloudUpload className="w-5 h-5 text-primary-blue" />
                 Import
               </button>
