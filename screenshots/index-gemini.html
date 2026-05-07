@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FileFlip - Feature Graphics Launchpad</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        base: '#101C22',        // Surface Dark
+                        surface: '#1A2830',     // Surface Variant
+                        primary: '#0DA6F2',     // Primary Blue
+                        textPrim: '#F1F5F9',    // Text Primary
+                        textSec: '#94A3B8',     // Text Secondary
+                        accentOrg: '#FF9F1C',   // Accent Orange
+                        accentGrn: '#10B981',   // Accent Emerald
+                        appbg: '#080E11',       // Outer Background
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace'],
+                    },
+                    borderRadius: {
+                        'm3': '24px',           // Material Design 3 Spec
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+                        'float': '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+                        'glow': '0 0 40px -10px rgba(13, 166, 242, 0.25)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #080E11;
+        }
+
+        /* Glassmorphism Hints */
+        .glass-panel {
+            background: rgba(26, 40, 48, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* 0.2s cubic-bezier micro-animations as per spec */
+        .micro-anim {
+            transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        .micro-anim:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6), 0 0 20px -5px rgba(13, 166, 242, 0.2);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Clean Image Borders */
+        .app-screenshot {
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            display: block;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center py-12 gap-16">
+
+    <!-- Slide 1: Hero / Privacy & Offline -->
+    <div
+        class="relative w-[1280px] h-[720px] bg-base overflow-hidden flex items-center shadow-2xl rounded-none border border-white/5">
+        <!-- Subtle Oceanic Glow -->
+        <div
+            class="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-primary/10 blur-[120px] rounded-full pointer-events-none">
+        </div>
+
+        <div class="w-[45%] h-full flex flex-col justify-center pl-20 pr-8 z-10">
+            <div class="flex items-center gap-3 mb-8">
+                <div
+                    class="w-10 h-10 bg-primary/10 border border-primary/30 rounded-xl flex items-center justify-center text-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                    </svg>
+                </div>
+                <span class="font-sans font-bold text-2xl text-textPrim tracking-wide">FileFlip</span>
+            </div>
+
+            <h1 class="font-sans font-bold text-[56px] text-textPrim leading-[1.1] mb-6 tracking-tight">
+                Privacy-focused.<br>
+                <span class="text-primary">Offline-first.</span>
+            </h1>
+
+            <p class="font-sans font-medium text-[20px] text-textSec mb-10 max-w-[420px] leading-relaxed">
+                The beautifully polished text and markdown editor. Your sensitive data never leaves your device.
+            </p>
+
+            <div class="flex flex-wrap gap-3">
+                <span
+                    class="glass-panel px-4 py-2 rounded-full font-mono text-xs font-medium text-textPrim flex items-center gap-2 micro-anim">
+                    <span class="w-2 h-2 rounded-full bg-accentGrn"></span> Local-Only
+                </span>
+                <span
+                    class="glass-panel px-4 py-2 rounded-full font-mono text-xs font-medium text-textPrim micro-anim">Developer
+                    UI</span>
+                <span
+                    class="glass-panel px-4 py-2 rounded-full font-mono text-xs font-medium text-textPrim micro-anim">No
+                    Trackers</span>
+            </div>
+        </div>
+
+        <div class="w-[55%] h-full relative flex items-center z-10 pr-12">
+            <!-- Web Dashboard (Background) -->
+            <div class="relative w-full rounded-m3 micro-anim bg-surface">
+                <img src="web_dashboard.png" alt="Web Dashboard"
+                    class="app-screenshot aspect-[16/10] object-cover object-left-top">
+            </div>
+            <!-- Mobile overlay (Foreground) -->
+            <div class="absolute bottom-12 right-16 w-[240px] rounded-m3 border-4 border-base shadow-float micro-anim">
+                <img src="mobile_home_filled.png" alt="Mobile Home" class="app-screenshot border-none">
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Slide 2: The Polished Editor Experience -->
+    <div
+        class="relative w-[1280px] h-[720px] bg-base overflow-hidden flex flex-row-reverse items-center shadow-2xl rounded-none border border-white/5">
+        <!-- Subtle Oceanic Glow -->
+        <div
+            class="absolute bottom-[-30%] right-[-10%] w-[800px] h-[800px] bg-primary/10 blur-[120px] rounded-full pointer-events-none">
+        </div>
+
+        <div class="w-[45%] h-full flex flex-col justify-center pr-20 pl-12 z-10">
+            <div class="mb-6 inline-block">
+                <span
+                    class="font-mono text-xs tracking-widest uppercase text-primary border border-primary/30 bg-primary/10 px-3 py-1 rounded-full">
+                    // Editor
+                </span>
+            </div>
+
+            <h2 class="font-sans font-bold text-[56px] text-textPrim leading-[1.1] mb-6 tracking-tight">
+                A professional<br>writing environment.
+            </h2>
+
+            <p class="font-sans font-medium text-[20px] text-textSec mb-10 max-w-[440px] leading-relaxed">
+                Syntax highlighting, live Markdown previews, and a clean M3 interface that feels exactly like a desktop
+                IDE.
+            </p>
+
+            <div class="flex flex-col gap-5">
+                <div class="glass-panel rounded-2xl p-4 flex items-center gap-4 micro-anim">
+                    <div
+                        class="w-10 h-10 bg-surface rounded-xl flex items-center justify-center text-primary border border-white/5">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-sans font-semibold text-textPrim text-lg">Oceanic Dark Theme</h3>
+                        <p class="font-sans text-sm text-textSec">Reduces eye strain with high contrast</p>
+                    </div>
+                </div>
+                <div class="glass-panel rounded-2xl p-4 flex items-center gap-4 micro-anim">
+                    <div
+                        class="w-10 h-10 bg-surface rounded-xl flex items-center justify-center text-primary border border-white/5">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-sans font-semibold text-textPrim text-lg">Robust Syntax Highlighting</h3>
+                        <p class="font-sans text-sm text-textSec">Markdown, JSON, YAML, and more</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-[55%] h-full relative flex items-center z-10 pl-12">
+            <!-- Web Editor Preview -->
+            <div class="w-full rounded-m3 micro-anim bg-surface">
+                <img src="web_editor_preview.png" alt="Web Editor Preview"
+                    class="app-screenshot aspect-[16/10] object-cover object-left-top">
+            </div>
+            <!-- Mobile Editor Overlay -->
+            <div
+                class="absolute top-1/2 -translate-y-1/2 right-[-30px] w-[260px] rounded-m3 border-4 border-base shadow-float micro-anim">
+                <img src="mobile_editor.png" alt="Mobile Editor" class="app-screenshot border-none">
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Slide 3: Organization Grid -->
+    <div
+        class="relative w-[1280px] h-[720px] bg-base overflow-hidden flex flex-col justify-center items-center shadow-2xl rounded-none border border-white/5 pt-12">
+        <div
+            class="absolute top-[0%] left-[20%] w-[800px] h-[800px] bg-primary/5 blur-[120px] rounded-full pointer-events-none">
+        </div>
+
+        <div class="text-center z-10 mb-14 max-w-2xl">
+            <div class="mb-4 inline-block">
+                <span
+                    class="font-mono text-xs tracking-widest uppercase text-primary border border-primary/30 bg-primary/10 px-3 py-1 rounded-full">
+                    // Workspace
+                </span>
+            </div>
+            <h2 class="font-sans font-bold text-[48px] text-textPrim leading-[1.1] mb-4 tracking-tight">
+                Minimalism meets power.
+            </h2>
+            <p class="font-sans font-medium text-[18px] text-textSec leading-relaxed">
+                Clean surface-variant cards, precise iconography, and folder management that keeps your workspace
+                completely clutter-free.
+            </p>
+        </div>
+
+        <div class="flex gap-8 items-center z-10 w-full px-20 pb-8 h-[380px]">
+            <!-- Empty State -->
+            <div
+                class="h-full relative rounded-m3 micro-anim border-4 border-base outline outline-1 outline-white/10 shadow-float">
+                <img src="mobile_files_empty.png" alt="Empty State" class="h-full w-auto rounded-[20px] object-cover">
+            </div>
+
+            <!-- Web Recent Center -->
+            <div class="flex-1 h-full relative rounded-m3 micro-anim shadow-glow border border-white/10">
+                <img src="web_recent.png" alt="Web Recent Files"
+                    class="h-full w-full rounded-m3 object-cover object-top">
+            </div>
+
+            <!-- Filled State -->
+            <div
+                class="h-full relative rounded-m3 micro-anim border-4 border-base outline outline-1 outline-white/10 shadow-float">
+                <img src="mobile_file_filled.png" alt="Filled Files" class="h-full w-auto rounded-[20px] object-cover">
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Slide 4: Export Capabilities -->
+    <div
+        class="relative w-[1280px] h-[720px] bg-base overflow-hidden flex items-center shadow-2xl rounded-none border border-white/5">
+        <div
+            class="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-primary/10 blur-[120px] rounded-full pointer-events-none">
+        </div>
+
+        <div class="w-1/2 h-full flex flex-col justify-center pl-20 pr-12 z-10">
+            <div class="mb-6 inline-block">
+                <span
+                    class="font-mono text-xs tracking-widest uppercase text-accentOrg border border-accentOrg/30 bg-accentOrg/10 px-3 py-1 rounded-full">
+                    // Pro Features
+                </span>
+            </div>
+
+            <h2 class="font-sans font-bold text-[56px] text-textPrim leading-[1.1] mb-6 tracking-tight">
+                Export to<br>professional formats.
+            </h2>
+
+            <p class="font-sans font-medium text-[20px] text-textSec mb-10 max-w-[460px] leading-relaxed">
+                Transform raw markdown into clean, GitHub-styled PDFs. Share beautifully formatted documentation with
+                zero headaches.
+            </p>
+
+            <ul class="font-sans text-lg text-textPrim space-y-4 max-w-[400px]">
+                <li class="flex items-center gap-4 glass-panel p-4 rounded-2xl micro-anim">
+                    <span class="text-primary font-bold text-xl leading-none">01.</span>
+                    <span class="font-medium">Unlimited PDF Exports</span>
+                </li>
+                <li class="flex items-center gap-4 glass-panel p-4 rounded-2xl micro-anim">
+                    <span class="text-primary font-bold text-xl leading-none">02.</span>
+                    <span class="font-medium">GitHub-style Rendering</span>
+                </li>
+                <li class="flex items-center gap-4 glass-panel p-4 rounded-2xl micro-anim">
+                    <span class="text-primary font-bold text-xl leading-none">03.</span>
+                    <span class="font-medium">Cross-device Cloud Sync</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="w-1/2 h-full flex justify-center items-center gap-8 z-10 pr-12 relative">
+            <!-- Mobile Settings -->
+            <div class="w-[260px] mt-24 rounded-m3 micro-anim border border-white/10 shadow-float">
+                <img src="mobile_settings.png" alt="Mobile Settings" class="app-screenshot">
+            </div>
+
+            <!-- Mobile Preview -->
+            <div class="w-[260px] mb-24 rounded-m3 micro-anim border border-white/10 shadow-glow">
+                <img src="mobile_preview.png" alt="Mobile Preview" class="app-screenshot border-primary/30">
+                <!-- Floating Glass Badge -->
+                <div
+                    class="absolute bottom-32 right-12 glass-panel px-5 py-3 rounded-full flex items-center gap-2 shadow-2xl backdrop-blur-xl animate-pulse">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-accentGrn" viewBox="0 0 20 20"
+                        fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    <span class="font-sans font-bold text-sm text-textPrim">PDF Generated</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
