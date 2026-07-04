@@ -67,6 +67,10 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.LaunchedEffect
+import android.content.Context
 import android.util.Log
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -79,6 +83,26 @@ object SettingsState {
     var defaultSaveDirectory by mutableStateOf<String?>(null)
     var editorTextSize by mutableFloatStateOf(16f)
     var previewTextSize by mutableFloatStateOf(18f)
+
+    // Global API Key check variables
+    var apiKey by mutableStateOf("")
+    var isApiKeyConfigured by mutableStateOf(false)
+    var hasShownApiKeyPromptThisSession = false
+
+    fun loadSettings(context: Context) {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        apiKey = prefs.getString("api_key", "") ?: ""
+        isApiKeyConfigured = apiKey.isNotEmpty()
+    }
+
+    fun saveApiKey(context: Context, key: String) {
+        apiKey = key
+        isApiKeyConfigured = key.isNotEmpty()
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("api_key", key)
+            .apply()
+    }
 }
 
 // Design Colors - now pulled from theme
@@ -94,12 +118,22 @@ private val TextGray: Color @Composable get() = LocalAppColors.current.textSecon
 @Composable
 fun SettingsScreen(navController: NavController) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        SettingsState.loadSettings(context)
+    }
+
     var textSize by remember { mutableFloatStateOf(SettingsState.editorTextSize) }
     var previewTextSize by remember { mutableFloatStateOf(SettingsState.previewTextSize) }
     var selectedTheme by remember { mutableIntStateOf(ThemeManager.currentThemeIndex) }
     var fontExpanded by remember { mutableStateOf(false) }
+    var apiKeyInput by remember { mutableStateOf(SettingsState.apiKey) }
 
-    val context = LocalContext.current
+    LaunchedEffect(SettingsState.apiKey) {
+        apiKeyInput = SettingsState.apiKey
+    }
+
     val directoryPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -270,6 +304,47 @@ fun SettingsScreen(navController: NavController) {
                         },
                         onClick = { directoryPickerLauncher.launch(null) }
                     )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+
+            // --- AI Configuration Section ---
+            item { SectionHeader("AI AGENT CONFIGURATION") }
+            item {
+                SettingsCard {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "AI API Key",
+                            color = TextWhite,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = apiKeyInput,
+                            onValueChange = { newValue ->
+                                apiKeyInput = newValue
+                                SettingsState.saveApiKey(context, newValue)
+                            },
+                            placeholder = { Text("Enter API Key (e.g., OpenRouter / Groq / Gemini)", color = TextGray) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = PrimaryBlue,
+                                unfocusedBorderColor = BorderColor,
+                                cursorColor = PrimaryBlue
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Configuring an API key enables FlipFile's AI capabilities. Leave empty for offline-only mode.",
+                            color = TextGray,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 

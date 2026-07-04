@@ -46,12 +46,20 @@ fun AppNavigation(
         composable("onboarding") { OnboardingScreen(navController) }
         composable("dashboard") { DashboardScreen(navController) }
         composable(
-            route = "editor/{filePath}",
-            arguments = listOf(androidx.navigation.navArgument("filePath") { type = androidx.navigation.NavType.StringType })
+            route = "editor/{filePath}?folder={folderUri}",
+            arguments = listOf(
+                androidx.navigation.navArgument("filePath") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("folderUri") {
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
         ) { backStackEntry ->
-            val encodedFilePath = backStackEntry.arguments?.getString("filePath") ?: return@composable
+            val encodedFilePath = backStackEntry.arguments?.getString("filePath") ?: "empty"
             val filePath = java.net.URLDecoder.decode(encodedFilePath, "UTF-8")
-            EditorScreen(navController, filePath)
+            val folderUri = backStackEntry.arguments?.getString("folderUri")
+            EditorScreen(navController, filePath, folderUri)
         }
         composable(
             route = "preview/{filePath}",

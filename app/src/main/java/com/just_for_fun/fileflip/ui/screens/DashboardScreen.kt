@@ -72,6 +72,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -116,8 +117,19 @@ fun DashboardScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var showTemplatesBottomSheet by remember { mutableStateOf(false) }
+    var showApiKeyPromptDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        com.just_for_fun.fileflip.ui.screens.SettingsState.loadSettings(context)
+        if (!com.just_for_fun.fileflip.ui.screens.SettingsState.isApiKeyConfigured && 
+            !com.just_for_fun.fileflip.ui.screens.SettingsState.hasShownApiKeyPromptThisSession) {
+            showApiKeyPromptDialog = true
+            com.just_for_fun.fileflip.ui.screens.SettingsState.hasShownApiKeyPromptThisSession = true
+        }
+    }
     var showFileTypeSelectionBottomSheet by remember { mutableStateOf(false) }
     var showFileActionsBottomSheet by remember { mutableStateOf(false) }
+    var showImportOptionsBottomSheet by remember { mutableStateOf(false) }
     var selectedFileForActions by remember { mutableStateOf<MarkdownFile?>(null) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -152,6 +164,24 @@ fun DashboardScreen(
             android.widget.Toast.makeText(context, "Imported $successCount files", android.widget.Toast.LENGTH_SHORT).show()
         } else if (uris.isNotEmpty()) {
              android.widget.Toast.makeText(context, "Failed to import files", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val directoryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            Log.d("FileFlip", "Selected folder: $uri")
+            try {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+
+                val encodedFolderUri = java.net.URLEncoder.encode(uri.toString(), "UTF-8")
+                navController.navigate("editor/empty?folder=$encodedFolderUri")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -352,11 +382,7 @@ fun DashboardScreen(
 
             // --- Quick Actions ---
             QuickActionsGrid(
-                onImportClick = { 
-                    filePickerLauncher.launch(
-                        arrayOf("application/pdf", "text/*", "application/json", "application/xml", "text/csv")
-                    ) 
-                },
+                onImportClick = { showImportOptionsBottomSheet = true },
                 onTemplatesClick = { showTemplatesBottomSheet = true }
             )
 
@@ -538,6 +564,18 @@ fun DashboardScreen(
         )
     }
 
+    if (showImportOptionsBottomSheet) {
+        ImportOptionsBottomSheet(
+            onDismiss = { showImportOptionsBottomSheet = false },
+            onOpenFolder = { directoryPickerLauncher.launch(null) },
+            onOpenFile = {
+                filePickerLauncher.launch(
+                    arrayOf("application/pdf", "text/*", "application/json", "application/xml", "text/csv")
+                )
+            }
+        )
+    }
+
     if (showFileActionsBottomSheet) {
         FileActionsBottomSheet(
             file = selectedFileForActions,
@@ -589,6 +627,39 @@ fun DashboardScreen(
                 showRenameDialog = false
                 selectedFileForActions = null
             }
+        )
+    }
+
+    if (showApiKeyPromptDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showApiKeyPromptDialog = false },
+            title = { Text("Unlock AI Potential", color = TextWhite) },
+            text = {
+                Text(
+                    text = "You can use this application in its full potential by using AI agents. To do this, you can go and add an API key of your desired AI provider, and use this application in its full potential with agents working there.",
+                    color = TextGray
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showApiKeyPromptDialog = false
+                        navController.navigate("settings")
+                    }
+                ) {
+                    Text("Open", color = PrimaryBlue)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showApiKeyPromptDialog = false }
+                ) {
+                    Text("Close", color = TextGray)
+                }
+            },
+            containerColor = SurfaceDark,
+            textContentColor = TextWhite,
+            titleContentColor = TextWhite
         )
     }
 }
@@ -736,6 +807,116 @@ fun FileTypeSelectionBottomSheet(onDismiss: () -> Unit, onFileTypeSelected: (Str
                                 tint = PrimaryBlue
                             )
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImportOptionsBottomSheet(
+    onDismiss: () -> Unit,
+    onOpenFolder: () -> Unit,
+    onOpenFile: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = SurfaceDark,
+        contentColor = TextWhite
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Import Options",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextWhite,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "Close",
+                        tint = TextGray,
+                        modifier = Modifier.rotate(45f)
+                    )
+                }
+            }
+
+            // Options
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Folder Option (On Top)
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        onDismiss()
+                        onOpenFolder()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FolderOpen,
+                            contentDescription = "Open Folder",
+                            tint = TextGray,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text("Open Folder", color = TextWhite, modifier = Modifier.weight(1f))
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "Select",
+                            tint = PrimaryBlue
+                        )
+                    }
+                }
+
+                // File Option (On Bottom)
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        onDismiss()
+                        onOpenFile()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Description,
+                            contentDescription = "Open File",
+                            tint = TextGray,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text("Open File", color = TextWhite, modifier = Modifier.weight(1f))
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "Select",
+                            tint = PrimaryBlue
+                        )
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package com.just_for_fun.fileflip.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -96,6 +97,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.net.Uri
+import androidx.compose.runtime.mutableStateMapOf
 import android.util.Log
 import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -125,6 +127,225 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.platform.LocalDensity
 
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.UnfoldMore
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.documentfile.provider.DocumentFile
+
+data class ExplorerItem(
+    val name: String,
+    val uri: Uri,
+    val isDirectory: Boolean,
+    val children: List<ExplorerItem> = emptyList()
+)
+
+fun listDocumentFiles(context: Context, parent: DocumentFile): List<ExplorerItem> {
+    val list = mutableListOf<ExplorerItem>()
+    try {
+        // Determine the correct document ID for building the children URI
+        val parentDocId = try {
+            android.provider.DocumentsContract.getTreeDocumentId(parent.uri)
+                ?: android.provider.DocumentsContract.getDocumentId(parent.uri)
+        } catch (e: Exception) {
+            try {
+                android.provider.DocumentsContract.getDocumentId(parent.uri)
+            } catch (e2: Exception) {
+                Log.e("FileFlip", "listDocumentFiles: Cannot get docId for '${parent.name}', uri=${parent.uri}", e2)
+                null
+            }
+        }
+
+        if (parentDocId == null) {
+            Log.e("FileFlip", "listDocumentFiles: parentDocId is null for '${parent.name}'")
+            return emptyList()
+        }
+
+        val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
+            parent.uri,
+            parentDocId
+        )
+        Log.d("FileFlip", "listDocumentFiles: Querying childrenUri=$childrenUri for parent='${parent.name}'")
+
+        val cursor = context.contentResolver.query(
+            childrenUri,
+            arrayOf(
+                android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID
+            ),
+            null, null, null
+        )
+
+        cursor?.use { c ->
+            Log.d("FileFlip", "listDocumentFiles: cursor count = ${c.count} for parent='${parent.name}'")
+            while (c.moveToNext()) {
+                val displayName = c.getString(0) ?: "Unknown"
+                val mimeType = c.getString(1) ?: ""
+                val docId = c.getString(2)
+                val isDir = mimeType == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(parent.uri, docId)
+
+                Log.d("FileFlip", "  child: name='$displayName', mime='$mimeType', isDir=$isDir")
+
+                if (isDir) {
+                    val childTreeUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(parent.uri, docId)
+                    list.add(
+                        ExplorerItem(
+                            name = displayName,
+                            uri = childTreeUri,
+                            isDirectory = true,
+                            children = listDocumentFilesFromTree(context, parent.uri, docId)
+                        )
+                    )
+                } else {
+                    list.add(
+                        ExplorerItem(
+                            name = displayName,
+                            uri = childUri,
+                            isDirectory = false
+                        )
+                    )
+                }
+            }
+        } ?: run {
+            Log.e("FileFlip", "listDocumentFiles: cursor is null for parent='${parent.name}'")
+        }
+    } catch (e: Exception) {
+        Log.e("FileFlip", "listDocumentFiles error for parent: ${parent.name}", e)
+    }
+    return list.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+}
+
+/**
+ * Recursively lists children of a sub-directory inside a tree URI using ContentResolver.
+ */
+fun listDocumentFilesFromTree(context: Context, treeUri: Uri, parentDocId: String): List<ExplorerItem> {
+    val list = mutableListOf<ExplorerItem>()
+    try {
+        val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentDocId
+        )
+        val cursor = context.contentResolver.query(
+            childrenUri,
+            arrayOf(
+                android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID
+            ),
+            null, null, null
+        )
+        cursor?.use { c ->
+            while (c.moveToNext()) {
+                val displayName = c.getString(0) ?: "Unknown"
+                val mimeType = c.getString(1) ?: ""
+                val docId = c.getString(2)
+                val isDir = mimeType == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+
+                if (isDir) {
+                    list.add(
+                        ExplorerItem(
+                            name = displayName,
+                            uri = childUri,
+                            isDirectory = true,
+                            children = listDocumentFilesFromTree(context, treeUri, docId)
+                        )
+                    )
+                } else {
+                    list.add(
+                        ExplorerItem(
+                            name = displayName,
+                            uri = childUri,
+                            isDirectory = false
+                        )
+                    )
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("FileFlip", "listDocumentFilesFromTree error for parentDocId=$parentDocId", e)
+    }
+    return list.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+}
+
+fun copyUriToLocalFile(context: Context, uri: Uri, fileName: String): File? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val outputDir = File(context.getExternalFilesDir(null), "Files").apply {
+            if (!exists()) mkdirs()
+        }
+        val outputFile = File(outputDir, fileName)
+        inputStream.use { input ->
+            outputFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        outputFile
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+@Composable
+fun ExplorerTree(
+    item: ExplorerItem,
+    depth: Int,
+    onFileClick: (Uri, String) -> Unit,
+    expandedFolders: MutableMap<String, Boolean>
+) {
+    val isExpanded = expandedFolders[item.uri.toString()] ?: false
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    if (item.isDirectory) {
+                        expandedFolders[item.uri.toString()] = !isExpanded
+                    } else {
+                        onFileClick(item.uri, item.name)
+                    }
+                }
+                .padding(vertical = 8.dp, horizontal = (16 + depth * 12).dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (item.isDirectory) {
+                    Icons.Rounded.FolderOpen
+                } else {
+                    val ext = item.name.substringAfterLast(".", "").lowercase()
+                    FileIconHelper.getIconAndColor(ext).first
+                },
+                contentDescription = null,
+                tint = if (item.isDirectory) PrimaryBlue else FileIconHelper.getIconAndColor(item.name.substringAfterLast(".", "").lowercase()).second,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = item.name,
+                color = TextWhite,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (item.isDirectory && isExpanded) {
+            item.children.forEach { child ->
+                ExplorerTree(
+                    item = child,
+                    depth = depth + 1,
+                    onFileClick = onFileClick,
+                    expandedFolders = expandedFolders
+                )
+            }
+        }
+    }
+}
+
+
 // Helper function to get file icon and color based on extension
 fun getFileIconAndColorEditorScreen(extension: String): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
     val cleanExtension = extension.removePrefix(".")
@@ -144,7 +365,8 @@ private val DividerColor: Color @Composable get() = LocalAppColors.current.divid
 @Composable
 fun EditorScreen(
     navController: NavController,
-    filePath: String
+    filePath: String,
+    folderUri: String? = null
 ) {
     val context = LocalContext.current
     
@@ -154,6 +376,65 @@ fun EditorScreen(
     val currentFile by viewModel.currentFile.collectAsState()
     val content by viewModel.content.collectAsState()
     var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
+
+    // Explorer tree states
+    var explorerItems by remember { mutableStateOf<List<ExplorerItem>>(emptyList()) }
+    var rootFolderName by remember { mutableStateOf("") }
+    val expandedFolders = remember { mutableStateMapOf<String, Boolean>() }
+    var isLoadingExplorer by remember { mutableStateOf(false) }
+    var explorerDebugInfo by remember { mutableStateOf("") }
+
+    LaunchedEffect(folderUri) {
+        if (folderUri != null) {
+            isLoadingExplorer = true
+            Log.d("FileFlip", "EditorScreen: LaunchedEffect START for folderUri = $folderUri")
+
+            // Auto-expand root
+            expandedFolders[folderUri] = true
+
+            // Check persisted URI permissions
+            val persistedPermissions = context.contentResolver.persistedUriPermissions
+            Log.d("FileFlip", "EditorScreen: Persisted URI permissions count = ${persistedPermissions.size}")
+            persistedPermissions.forEach { perm ->
+                Log.d("FileFlip", "  Persisted: uri=${perm.uri}, read=${perm.isReadPermission}, write=${perm.isWritePermission}")
+            }
+
+            // Do IO work and capture results
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val rootUri = Uri.parse(folderUri)
+                    Log.d("FileFlip", "EditorScreen: Parsed rootUri = $rootUri")
+                    val rootDoc = DocumentFile.fromTreeUri(context, rootUri)
+                    Log.d("FileFlip", "EditorScreen: rootDoc = $rootDoc, name=${rootDoc?.name}, canRead=${rootDoc?.canRead()}, isDir=${rootDoc?.isDirectory}")
+
+                    if (rootDoc != null && rootDoc.canRead()) {
+                        val name = rootDoc.name ?: "Workspace"
+                        val items = listDocumentFiles(context, rootDoc)
+                        Log.d("FileFlip", "EditorScreen: Loaded ${items.size} explorer items from '$name'")
+                        Triple(name, items, "Loaded ${items.size} items")
+                    } else {
+                        val reason = when {
+                            rootDoc == null -> "rootDoc is null"
+                            !rootDoc.canRead() -> "canRead() returned false"
+                            else -> "unknown"
+                        }
+                        Log.e("FileFlip", "EditorScreen: Failed to read directory - $reason")
+                        Triple("Workspace", emptyList<ExplorerItem>(), "Error: $reason")
+                    }
+                } catch (e: Exception) {
+                    Log.e("FileFlip", "EditorScreen: Exception during explorer load", e)
+                    Triple("Workspace", emptyList<ExplorerItem>(), "Exception: ${e.message}")
+                }
+            }
+
+            // Apply state updates on Main thread
+            rootFolderName = result.first
+            explorerItems = result.second
+            explorerDebugInfo = result.third
+            isLoadingExplorer = false
+            Log.d("FileFlip", "EditorScreen: State updated - rootFolderName='$rootFolderName', itemCount=${explorerItems.size}, debug='$explorerDebugInfo'")
+        }
+    }
     
     // Multiple files support
     val openFiles by viewModel.openFiles.collectAsState()
@@ -289,60 +570,185 @@ fun EditorScreen(
             ModalDrawerSheet(
                 drawerContainerColor = SurfaceDark
             ) {
-                // Drawer Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Description,
-                        contentDescription = null,
-                        tint = PrimaryBlue,
-                        modifier = Modifier.size(32.dp)
+                if (folderUri != null) {
+                    // --- Folder Explorer Sidebar (VS Code Style) ---
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Folder Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    // Clicking root folder toggles expansion of all items
+                                    expandedFolders[folderUri] = !(expandedFolders[folderUri] ?: false)
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.FolderOpen,
+                                contentDescription = null,
+                                tint = PrimaryBlue,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = rootFolderName.uppercase(),
+                                color = TextWhite,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = if (expandedFolders[folderUri] == true) Icons.Rounded.ExpandLess else Icons.Rounded.UnfoldMore,
+                                contentDescription = null,
+                                tint = TextGray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        androidx.compose.material3.HorizontalDivider(color = DividerColor)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Debug info (visible on screen)
+                        Text(
+                            text = "Items: ${explorerItems.size} | $explorerDebugInfo",
+                            color = TextGray.copy(alpha = 0.5f),
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+
+                        if (isLoadingExplorer) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+                                color = PrimaryBlue
+                            )
+                        } else if (explorerItems.isEmpty()) {
+                            Text(
+                                text = "No files found in this folder",
+                                color = TextGray,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        } else {
+                            // Scrollable list of files/folders
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                items(explorerItems.size) { index ->
+                                    val item = explorerItems[index]
+                                    ExplorerTree(
+                                        item = item,
+                                        depth = 0,
+                                        onFileClick = { fileUri, fileName ->
+                                            val localFile = copyUriToLocalFile(context, fileUri, fileName)
+                                            if (localFile != null) {
+                                                viewModel.loadFile(localFile.absolutePath)
+                                                scope.launch { drawerState.close() }
+                                            } else {
+                                                android.widget.Toast.makeText(context, "Failed to open file", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        expandedFolders = expandedFolders
+                                    )
+                                }
+                            }
+                        }
+
+                        // Bottom Navigation Items in Folder Sidebar
+                        androidx.compose.material3.HorizontalDivider(color = DividerColor)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        NavigationDrawerItem(
+                            label = { Text("Settings", color = TextWhite) },
+                            icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                navController.navigate("settings")
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                            ),
+                            modifier = Modifier.height(48.dp)
+                        )
+
+                        NavigationDrawerItem(
+                            label = { Text("About", color = TextWhite) },
+                            icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                navController.navigate("about")
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                            ),
+                            modifier = Modifier.height(48.dp)
+                        )
+                    }
+                } else {
+                    // --- Standard Drawer Content ---
+                    // Drawer Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            "Flip File",
+                            color = TextWhite,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    androidx.compose.material3.HorizontalDivider(color = DividerColor)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Navigation Items
+                    NavigationDrawerItem(
+                        label = { Text("Settings", color = TextWhite) },
+                        icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            navController.navigate("settings")
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent,
+                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                        )
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        "Flip File",
-                        color = TextWhite,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold
+
+                    NavigationDrawerItem(
+                        label = { Text("About", color = TextWhite) },
+                        icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            navController.navigate("about")
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent,
+                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                        )
                     )
                 }
-                
-                androidx.compose.material3.HorizontalDivider(color = DividerColor)
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Navigation Items
-                NavigationDrawerItem(
-                    label = { Text("Settings", color = TextWhite) },
-                    icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("settings")
-                    },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        unselectedContainerColor = Color.Transparent,
-                        selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
-                    )
-                )
-                
-                NavigationDrawerItem(
-                    label = { Text("About", color = TextWhite) },
-                    icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("about")
-                    },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        unselectedContainerColor = Color.Transparent,
-                        selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
-                    )
-                )
             }
         }
     ) {
