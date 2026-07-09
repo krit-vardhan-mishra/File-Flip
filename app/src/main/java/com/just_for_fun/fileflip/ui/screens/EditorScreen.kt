@@ -1,16 +1,17 @@
 package com.just_for_fun.fileflip.ui.screens
 
-import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.ExperimentalFoundationApi
+import android.net.Uri
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,342 +25,85 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.TextField
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FormatBold
-import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.FormatStrikethrough
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.FindReplace
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.outlined.AttachFile
-import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
-import android.net.Uri
-import androidx.compose.runtime.mutableStateMapOf
-import android.util.Log
-import androidx.compose.material.icons.automirrored.rounded.Article
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Code
-import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.NavController
-import androidx.activity.ComponentActivity
-import com.just_for_fun.fileflip.ui.util.FileIconHelper
-import com.just_for_fun.fileflip.domain.model.MarkdownFile
-import com.just_for_fun.fileflip.ui.viewmodels.EditorViewModel
-import com.just_for_fun.fileflip.ui.theme.LocalAppColors
-import java.io.File
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.platform.LocalDensity
-
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.UnfoldMore
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.documentfile.provider.DocumentFile
-
-data class ExplorerItem(
-    val name: String,
-    val uri: Uri,
-    val isDirectory: Boolean,
-    val children: List<ExplorerItem> = emptyList()
-)
-
-fun listDocumentFiles(context: Context, parent: DocumentFile): List<ExplorerItem> {
-    val list = mutableListOf<ExplorerItem>()
-    try {
-        // Determine the correct document ID for building the children URI
-        val parentDocId = try {
-            android.provider.DocumentsContract.getTreeDocumentId(parent.uri)
-                ?: android.provider.DocumentsContract.getDocumentId(parent.uri)
-        } catch (e: Exception) {
-            try {
-                android.provider.DocumentsContract.getDocumentId(parent.uri)
-            } catch (e2: Exception) {
-                Log.e("FileFlip", "listDocumentFiles: Cannot get docId for '${parent.name}', uri=${parent.uri}", e2)
-                null
-            }
-        }
-
-        if (parentDocId == null) {
-            Log.e("FileFlip", "listDocumentFiles: parentDocId is null for '${parent.name}'")
-            return emptyList()
-        }
-
-        val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
-            parent.uri,
-            parentDocId
-        )
-        Log.d("FileFlip", "listDocumentFiles: Querying childrenUri=$childrenUri for parent='${parent.name}'")
-
-        val cursor = context.contentResolver.query(
-            childrenUri,
-            arrayOf(
-                android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
-                android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID
-            ),
-            null, null, null
-        )
-
-        cursor?.use { c ->
-            Log.d("FileFlip", "listDocumentFiles: cursor count = ${c.count} for parent='${parent.name}'")
-            while (c.moveToNext()) {
-                val displayName = c.getString(0) ?: "Unknown"
-                val mimeType = c.getString(1) ?: ""
-                val docId = c.getString(2)
-                val isDir = mimeType == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
-                val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(parent.uri, docId)
-
-                Log.d("FileFlip", "  child: name='$displayName', mime='$mimeType', isDir=$isDir")
-
-                if (isDir) {
-                    val childTreeUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(parent.uri, docId)
-                    list.add(
-                        ExplorerItem(
-                            name = displayName,
-                            uri = childTreeUri,
-                            isDirectory = true,
-                            children = listDocumentFilesFromTree(context, parent.uri, docId)
-                        )
-                    )
-                } else {
-                    list.add(
-                        ExplorerItem(
-                            name = displayName,
-                            uri = childUri,
-                            isDirectory = false
-                        )
-                    )
-                }
-            }
-        } ?: run {
-            Log.e("FileFlip", "listDocumentFiles: cursor is null for parent='${parent.name}'")
-        }
-    } catch (e: Exception) {
-        Log.e("FileFlip", "listDocumentFiles error for parent: ${parent.name}", e)
-    }
-    return list.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
-}
-
-/**
- * Recursively lists children of a sub-directory inside a tree URI using ContentResolver.
- */
-fun listDocumentFilesFromTree(context: Context, treeUri: Uri, parentDocId: String): List<ExplorerItem> {
-    val list = mutableListOf<ExplorerItem>()
-    try {
-        val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
-            treeUri,
-            parentDocId
-        )
-        val cursor = context.contentResolver.query(
-            childrenUri,
-            arrayOf(
-                android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
-                android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID
-            ),
-            null, null, null
-        )
-        cursor?.use { c ->
-            while (c.moveToNext()) {
-                val displayName = c.getString(0) ?: "Unknown"
-                val mimeType = c.getString(1) ?: ""
-                val docId = c.getString(2)
-                val isDir = mimeType == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
-                val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-
-                if (isDir) {
-                    list.add(
-                        ExplorerItem(
-                            name = displayName,
-                            uri = childUri,
-                            isDirectory = true,
-                            children = listDocumentFilesFromTree(context, treeUri, docId)
-                        )
-                    )
-                } else {
-                    list.add(
-                        ExplorerItem(
-                            name = displayName,
-                            uri = childUri,
-                            isDirectory = false
-                        )
-                    )
-                }
-            }
-        }
-    } catch (e: Exception) {
-        Log.e("FileFlip", "listDocumentFilesFromTree error for parentDocId=$parentDocId", e)
-    }
-    return list.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
-}
-
-fun copyUriToLocalFile(context: Context, uri: Uri, fileName: String): File? {
-    return try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-        val outputDir = File(context.getExternalFilesDir(null), "Files").apply {
-            if (!exists()) mkdirs()
-        }
-        val outputFile = File(outputDir, fileName)
-        inputStream.use { input ->
-            outputFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-        outputFile
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
-}
-
-@Composable
-fun ExplorerTree(
-    item: ExplorerItem,
-    depth: Int,
-    onFileClick: (Uri, String) -> Unit,
-    expandedFolders: MutableMap<String, Boolean>
-) {
-    val isExpanded = expandedFolders[item.uri.toString()] ?: false
-
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    if (item.isDirectory) {
-                        expandedFolders[item.uri.toString()] = !isExpanded
-                    } else {
-                        onFileClick(item.uri, item.name)
-                    }
-                }
-                .padding(vertical = 8.dp, horizontal = (16 + depth * 12).dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (item.isDirectory) {
-                    Icons.Rounded.FolderOpen
-                } else {
-                    val ext = item.name.substringAfterLast(".", "").lowercase()
-                    FileIconHelper.getIconAndColor(ext).first
-                },
-                contentDescription = null,
-                tint = if (item.isDirectory) PrimaryBlue else FileIconHelper.getIconAndColor(item.name.substringAfterLast(".", "").lowercase()).second,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = item.name,
-                color = TextWhite,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        if (item.isDirectory && isExpanded) {
-            item.children.forEach { child ->
-                ExplorerTree(
-                    item = child,
-                    depth = depth + 1,
-                    onFileClick = onFileClick,
-                    expandedFolders = expandedFolders
-                )
-            }
-        }
-    }
-}
-
-
-// Helper function to get file icon and color based on extension
-fun getFileIconAndColorEditorScreen(extension: String): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
-    val cleanExtension = extension.removePrefix(".")
-    return FileIconHelper.getIconAndColor(cleanExtension)
-}
-
-// Design Colors - theme-aware
-private val PrimaryBlue: Color @Composable get() = LocalAppColors.current.primaryBlue
-private val BackgroundDark: Color @Composable get() = LocalAppColors.current.background
-private val SurfaceDark: Color @Composable get() = LocalAppColors.current.surface
-private val GutterColor: Color @Composable get() = LocalAppColors.current.gutter
-private val TextWhite: Color @Composable get() = LocalAppColors.current.textPrimary
-private val TextGray: Color @Composable get() = LocalAppColors.current.textSecondary
-private val DividerColor: Color @Composable get() = LocalAppColors.current.divider
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.just_for_fun.fileflip.domain.model.ExplorerItem
+import com.just_for_fun.fileflip.ui.components.editor.GlobalSearchOverlay
+import com.just_for_fun.fileflip.ui.components.editor.AgentSidebarContent
+import com.just_for_fun.fileflip.ui.components.editor.EditorFileTypeSelectionBottomSheet
+import com.just_for_fun.fileflip.ui.components.editor.EditorTab
+import com.just_for_fun.fileflip.ui.components.editor.EditorToolIcon
+import com.just_for_fun.fileflip.ui.components.editor.ExplorerTree
+import com.just_for_fun.fileflip.ui.components.editor.MoreOptionsBottomSheet
+import com.just_for_fun.fileflip.ui.components.editor.SaveAsBottomSheet
+import com.just_for_fun.fileflip.domain.model.SearchHighlightTransformation
+import com.just_for_fun.fileflip.ui.components.editor.SearchReplaceBottomSheet
+import com.just_for_fun.fileflip.ui.components.editor.WordCountRow
+import com.just_for_fun.fileflip.ui.theme.LocalAppColors
+import com.just_for_fun.fileflip.ui.util.*
+import com.just_for_fun.fileflip.ui.viewmodels.EditorViewModel
+import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -369,10 +113,10 @@ fun EditorScreen(
     folderUri: String? = null
 ) {
     val context = LocalContext.current
-    
+
     // Scope ViewModel to activity so it persists across navigation
     val viewModel: EditorViewModel = hiltViewModel(viewModelStoreOwner = context as ComponentActivity)
-    
+
     val currentFile by viewModel.currentFile.collectAsState()
     val content by viewModel.content.collectAsState()
     var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
@@ -383,6 +127,9 @@ fun EditorScreen(
     val expandedFolders = remember { mutableStateMapOf<String, Boolean>() }
     var isLoadingExplorer by remember { mutableStateOf(false) }
     var explorerDebugInfo by remember { mutableStateOf("") }
+
+    // Global Search Overlay State
+    var showGlobalSearch by remember { mutableStateOf(false) }
 
     LaunchedEffect(folderUri) {
         if (folderUri != null) {
@@ -435,47 +182,47 @@ fun EditorScreen(
             Log.d("FileFlip", "EditorScreen: State updated - rootFolderName='$rootFolderName', itemCount=${explorerItems.size}, debug='$explorerDebugInfo'")
         }
     }
-    
+
     // Multiple files support
     val openFiles by viewModel.openFiles.collectAsState()
     val currentFileIndex by viewModel.currentFileIndex.collectAsState()
     val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
     val fileNotFoundError by viewModel.fileNotFoundError.collectAsState()
-    
+
     // Bottom sheet states
     var showAttachBottomSheet by remember { mutableStateOf(false) }
     var showFileTypeSelectionBottomSheet by remember { mutableStateOf(false) }
     var showSaveAsBottomSheet by remember { mutableStateOf(false) }
     var showMoreOptionsBottomSheet by remember { mutableStateOf(false) }
-    
+
     // Close file dialog state
     var fileIndexToClose by remember { mutableStateOf<Int?>(null) }
     var showCloseFileDialog by remember { mutableStateOf(false) }
-    
+
     // Validation dialog state
     var showValidationDialog by remember { mutableStateOf(false) }
     var validationTitle by remember { mutableStateOf("") }
     var validationMessage by remember { mutableStateOf("") }
     var validationIsError by remember { mutableStateOf(false) }
-    
+
     // Word count dialog state
     var showWordCountDialog by remember { mutableStateOf(false) }
-    
+
     // Search & Replace bottom sheet state
     var showSearchReplaceSheet by remember { mutableStateOf(false) }
     var searchReplaceInitialMode by remember { mutableStateOf("search") } // "search" or "replace"
-    
+
     // Search highlighting state
     var searchMatchRanges by remember { mutableStateOf<List<IntRange>>(emptyList()) }
     var currentSearchMatchIndex by remember { mutableStateOf(0) }
     var replaceHighlight by remember { mutableStateOf<Pair<IntRange, Color>?>(null) }
     val editorScrollState = rememberScrollState()
-    
+
     // Menu and drawer states
     var showMenu by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    
+
     // Update textFieldValue when content changes from viewModel
     LaunchedEffect(content) {
         if (textFieldValue.text != content) {
@@ -485,7 +232,7 @@ fun EditorScreen(
             )
         }
     }
-    
+
     // Scroll to current search match when it changes
     val density = LocalDensity.current
     val lineHeightPx = with(density) { 22.sp.toPx() }
@@ -500,7 +247,7 @@ fun EditorScreen(
             editorScrollState.animateScrollTo(targetScroll)
         }
     }
-    
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -514,7 +261,7 @@ fun EditorScreen(
             }
         }
     }
-    
+
     val saveAsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/*")
     ) { uri: Uri? ->
@@ -564,1982 +311,851 @@ fun EditorScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = SurfaceDark
-            ) {
-                if (folderUri != null) {
-                    // --- Folder Explorer Sidebar (VS Code Style) ---
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                    ) {
-                        // Folder Header
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    // Clicking root folder toggles expansion of all items
-                                    expandedFolders[folderUri] = !(expandedFolders[folderUri] ?: false)
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FolderOpen,
-                                contentDescription = null,
-                                tint = PrimaryBlue,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = rootFolderName.uppercase(),
-                                color = TextWhite,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                imageVector = if (expandedFolders[folderUri] == true) Icons.Rounded.ExpandLess else Icons.Rounded.UnfoldMore,
-                                contentDescription = null,
-                                tint = TextGray,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+    // TTS configuration
+    var tts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    var speakingMessageId by remember { mutableStateOf<String?>(null) }
 
-                        androidx.compose.material3.HorizontalDivider(color = DividerColor)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Debug info (visible on screen)
-                        Text(
-                            text = "Items: ${explorerItems.size} | $explorerDebugInfo",
-                            color = TextGray.copy(alpha = 0.5f),
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-
-                        if (isLoadingExplorer) {
-                            androidx.compose.material3.CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
-                                color = PrimaryBlue
-                            )
-                        } else if (explorerItems.isEmpty()) {
-                            Text(
-                                text = "No files found in this folder",
-                                color = TextGray,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        } else {
-                            // Scrollable list of files/folders
-                            androidx.compose.foundation.lazy.LazyColumn(
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                items(explorerItems.size) { index ->
-                                    val item = explorerItems[index]
-                                    ExplorerTree(
-                                        item = item,
-                                        depth = 0,
-                                        onFileClick = { fileUri, fileName ->
-                                            val localFile = copyUriToLocalFile(context, fileUri, fileName)
-                                            if (localFile != null) {
-                                                viewModel.loadFile(localFile.absolutePath)
-                                                scope.launch { drawerState.close() }
-                                            } else {
-                                                android.widget.Toast.makeText(context, "Failed to open file", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
-                                        expandedFolders = expandedFolders
-                                    )
-                                }
-                            }
-                        }
-
-                        // Bottom Navigation Items in Folder Sidebar
-                        androidx.compose.material3.HorizontalDivider(color = DividerColor)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        NavigationDrawerItem(
-                            label = { Text("Settings", color = TextWhite) },
-                            icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
-                            selected = false,
-                            onClick = {
-                                scope.launch { drawerState.close() }
-                                navController.navigate("settings")
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
-                            ),
-                            modifier = Modifier.height(48.dp)
-                        )
-
-                        NavigationDrawerItem(
-                            label = { Text("About", color = TextWhite) },
-                            icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
-                            selected = false,
-                            onClick = {
-                                scope.launch { drawerState.close() }
-                                navController.navigate("about")
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
-                            ),
-                            modifier = Modifier.height(48.dp)
-                        )
-                    }
-                } else {
-                    // --- Standard Drawer Content ---
-                    // Drawer Header
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Description,
-                            contentDescription = null,
-                            tint = PrimaryBlue,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Flip File",
-                            color = TextWhite,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    androidx.compose.material3.HorizontalDivider(color = DividerColor)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Navigation Items
-                    NavigationDrawerItem(
-                        label = { Text("Settings", color = TextWhite) },
-                        icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            navController.navigate("settings")
-                        },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = Color.Transparent,
-                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
-                        )
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("About", color = TextWhite) },
-                        icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            navController.navigate("about")
-                        },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = Color.Transparent,
-                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
-                        )
-                    )
-                }
+    LaunchedEffect(Unit) {
+        tts = android.speech.tts.TextToSpeech(context) { status ->
+            if (status != android.speech.tts.TextToSpeech.SUCCESS) {
+                Log.e("FileFlip", "TTS Initialization failed!")
             }
         }
-    ) {
-    Scaffold(
-        containerColor = BackgroundDark,
-        topBar = {
-            Column {
-                // Main Header
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "FlipFile",
-                                color = TextWhite,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { 
-                            scope.launch { 
-                                if (drawerState.isClosed) drawerState.open() else drawerState.close()
-                            }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = "Menu",
-                                tint = PrimaryBlue
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showAttachBottomSheet = true }) {
-                            Icon(Icons.Outlined.AttachFile, contentDescription = "Attach", tint = TextGray)
-                        }
-                        IconButton(onClick = { viewModel.saveFile() }) {
-                            Icon(Icons.Default.Save, contentDescription = "Save", tint = PrimaryBlue)
-                        }
-                        IconButton(onClick = { 
-                            searchReplaceInitialMode = "search"
-                            showSearchReplaceSheet = true 
-                        }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", tint = TextGray)
-                        }
-                        IconButton(onClick = { showMoreOptionsBottomSheet = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = TextGray)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = BackgroundDark
-                    )
-                )
+    }
 
-                // Tab Row - Dynamic tabs for open files
-                if (openFiles.isNotEmpty()) {
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BackgroundDark.copy(alpha = 0.5f))
-                            .border(1.dp, DividerColor)
+    val speakText: (String, String) -> Unit = { messageId: String, text: String ->
+        if (speakingMessageId == messageId) {
+            tts?.stop()
+            speakingMessageId = null
+        } else {
+            tts?.stop()
+            speakingMessageId = messageId
+            val cleanText = text.replace(Regex("```[\\s\\S]*?```"), "[code block]")
+                .replace(Regex("[#*`_~]"), "")
+            tts?.speak(cleanText, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
+        }
+    }
+
+    // STT configuration
+    var onSttResultReceived by remember { mutableStateOf<((String) -> Unit)?>(null) }
+    val sttLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+            val spokenText = matches?.firstOrNull() ?: ""
+            if (spokenText.isNotEmpty()) {
+                onSttResultReceived?.invoke(spokenText)
+            }
+        }
+    }
+
+    val launchSpeechToText = { onResult: (String) -> Unit ->
+        onSttResultReceived = onResult
+        try {
+            val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your prompt...")
+            }
+            sttLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.e("FileFlip", "STT not supported on this device", e)
+            android.widget.Toast.makeText(context, "Speech recognizer not available", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val rightDrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        ModalNavigationDrawer(
+            drawerState = rightDrawerState,
+            drawerContent = {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    ModalDrawerSheet(
+                        drawerContainerColor = SurfaceDark,
+                        modifier = Modifier.width(320.dp)
                     ) {
-                        itemsIndexed(openFiles) { index, file ->
-                            EditorTab(
-                                title = file.name,
-                                isActive = index == currentFileIndex,
-                                hasUnsavedChanges = hasUnsavedChanges[file.path] ?: false,
-                                onClick = { viewModel.switchToFile(index) },
-                                onLongClick = {
-                                    fileIndexToClose = index
-                                    val fileHasChanges = hasUnsavedChanges[file.path] ?: false
-                                    if (fileHasChanges) {
-                                        showCloseFileDialog = true
+                        AgentSidebarContent (
+                            viewModel = viewModel,
+                            navController = navController,
+                            onClose = { scope.launch { rightDrawerState.close() } },
+                            speakText = speakText,
+                            speakingMessageId = speakingMessageId,
+                            launchSpeechToText = launchSpeechToText,
+                            onTextPatchSelected = { code ->
+                                viewModel.applyCodePatchToEditor(code, textFieldValue.selection)
+                            }
+                        )
+                    }
+                }
+            }
+        ) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+
+                        ModalDrawerSheet(
+                            drawerContainerColor = SurfaceDark
+                        ) {
+                            if (folderUri != null) {
+                                // --- Folder Explorer Sidebar (VS Code Style) ---
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp)
+                                ) {
+                                    // Folder Header
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                // Clicking root folder toggles expansion of all items
+                                                expandedFolders[folderUri] = !(expandedFolders[folderUri] ?: false)
+                                            }
+                                            .padding(vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.FolderOpen,
+                                            contentDescription = null,
+                                            tint = PrimaryBlue,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = rootFolderName.uppercase(),
+                                            color = TextWhite,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Icon(
+                                            imageVector = if (expandedFolders[folderUri] == true) Icons.Rounded.ExpandLess else Icons.Rounded.UnfoldMore,
+                                            contentDescription = null,
+                                            tint = TextGray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+
+                                    androidx.compose.material3.HorizontalDivider(color = DividerColor)
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Debug info (visible on screen)
+                                    Text(
+                                        text = "Items: ${explorerItems.size} | $explorerDebugInfo",
+                                        color = TextGray.copy(alpha = 0.5f),
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+
+                                    if (isLoadingExplorer) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+                                            color = PrimaryBlue
+                                        )
+                                    } else if (explorerItems.isEmpty()) {
+                                        Text(
+                                            text = "No files found in this folder",
+                                            color = TextGray,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier.padding(16.dp)
+                                        )
                                     } else {
-                                        viewModel.closeFile(index, forceClose = true)
+                                        // Scrollable list of files/folders
+                                        androidx.compose.foundation.lazy.LazyColumn(
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            items(explorerItems.size) { index ->
+                                                val item = explorerItems[index]
+                                                ExplorerTree(
+                                                    item = item,
+                                                    depth = 0,
+                                                    onFileClick = { fileUri, fileName ->
+                                                        val localFile = copyUriToLocalFile(context, fileUri, fileName)
+                                                        if (localFile != null) {
+                                                            viewModel.loadFile(localFile.absolutePath)
+                                                            scope.launch { drawerState.close() }
+                                                        } else {
+                                                            android.widget.Toast.makeText(context, "Failed to open file", android.widget.Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    },
+                                                    expandedFolders = expandedFolders
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Bottom Navigation Items in Folder Sidebar
+                                    androidx.compose.material3.HorizontalDivider(color = DividerColor)
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    NavigationDrawerItem(
+                                        label = { Text("Settings", color = TextWhite) },
+                                        icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
+                                        selected = false,
+                                        onClick = {
+                                            scope.launch { drawerState.close() }
+                                            navController.navigate("settings")
+                                        },
+                                        colors = NavigationDrawerItemDefaults.colors(
+                                            unselectedContainerColor = Color.Transparent,
+                                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                                        ),
+                                        modifier = Modifier.height(48.dp)
+                                    )
+
+                                    NavigationDrawerItem(
+                                        label = { Text("About", color = TextWhite) },
+                                        icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
+                                        selected = false,
+                                        onClick = {
+                                            scope.launch { drawerState.close() }
+                                            navController.navigate("about")
+                                        },
+                                        colors = NavigationDrawerItemDefaults.colors(
+                                            unselectedContainerColor = Color.Transparent,
+                                            selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                                        ),
+                                        modifier = Modifier.height(48.dp)
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Description,
+                                        contentDescription = null,
+                                        tint = PrimaryBlue,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        "Flip File",
+                                        color = TextWhite,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                androidx.compose.material3.HorizontalDivider(color = DividerColor)
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Navigation Items
+                                NavigationDrawerItem(
+                                    label = { Text("Settings", color = TextWhite) },
+                                    icon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = TextGray) },
+                                    selected = false,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        navController.navigate("settings")
+                                    },
+                                    colors = NavigationDrawerItemDefaults.colors(
+                                        unselectedContainerColor = Color.Transparent,
+                                        selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                                    )
+                                )
+
+                                NavigationDrawerItem(
+                                    label = { Text("About", color = TextWhite) },
+                                    icon = { Icon(Icons.Rounded.Info, contentDescription = null, tint = TextGray) },
+                                    selected = false,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        navController.navigate("about")
+                                    },
+                                    colors = NavigationDrawerItemDefaults.colors(
+                                        unselectedContainerColor = Color.Transparent,
+                                        selectedContainerColor = PrimaryBlue.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    // Wrapper Box for applying the global search blur overlay over the Scaffold
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Scaffold(
+                            modifier = if (showGlobalSearch) Modifier.blur(16.dp) else Modifier,
+                            containerColor = BackgroundDark,
+                            topBar = {
+                                Column {
+                                    // Main Header
+                                    TopAppBar(
+                                        title = {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(40.dp)
+                                                    .clip(RoundedCornerShape(15.dp))
+                                                    .clickable { showGlobalSearch = true },
+                                                color = SurfaceDark.copy(alpha = 0.8f),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    val headerText = when {
+                                                        currentFile != null -> currentFile!!.name
+                                                        rootFolderName.isNotEmpty() -> rootFolderName
+                                                        else -> "Search..."
+                                                    }
+                                                    Text(
+                                                        text = headerText,
+                                                        color = TextGray.copy(alpha = 0.7f),
+                                                        fontSize = 15.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(1.dp)
+                                                            .height(18.dp)
+                                                            .background(DividerColor)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        navigationIcon = {
+                                            IconButton(onClick = {
+                                                scope.launch {
+                                                    if (drawerState.isClosed) drawerState.open() else drawerState.close()
+                                                }
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Menu,
+                                                    contentDescription = "Menu",
+                                                    tint = PrimaryBlue
+                                                )
+                                            }
+                                        },
+                                        actions = {
+                                            IconButton(onClick = {
+                                                scope.launch {
+                                                    if (rightDrawerState.isClosed) rightDrawerState.open() else rightDrawerState.close()
+                                                }
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.AutoAwesome,
+                                                    contentDescription = "AI Agent",
+                                                    tint = PrimaryBlue
+                                                )
+                                            }
+                                            IconButton(onClick = { showMoreOptionsBottomSheet = true }) {
+                                                Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = TextGray)
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = BackgroundDark
+                                        )
+                                    )
+
+                                    // Tab Row - Dynamic tabs for open files
+                                    if (openFiles.isNotEmpty()) {
+                                        LazyRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(BackgroundDark.copy(alpha = 0.5f))
+                                                .border(1.dp, DividerColor)
+                                        ) {
+                                            itemsIndexed(openFiles) { index, file ->
+                                                EditorTab(
+                                                    title = file.name,
+                                                    isActive = index == currentFileIndex,
+                                                    hasUnsavedChanges = hasUnsavedChanges[file.path] ?: false,
+                                                    onClick = { viewModel.switchToFile(index) },
+                                                    onLongClick = {
+                                                        fileIndexToClose = index
+                                                        val fileHasChanges = hasUnsavedChanges[file.path] ?: false
+                                                        if (fileHasChanges) {
+                                                            showCloseFileDialog = true
+                                                        } else {
+                                                            viewModel.closeFile(index, forceClose = true)
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Show empty state when no files are open
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(BackgroundDark.copy(alpha = 0.5f))
+                                                .border(1.dp, DividerColor)
+                                                .padding(16.dp),
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(
+                                                "No files open",
+                                                color = TextGray,
+                                                fontSize = 14.sp
+                                            )
+                                        }
                                     }
                                 }
-                            )
-                        }
-                    }
-                } else {
-                    // Show empty state when no files are open
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BackgroundDark.copy(alpha = 0.5f))
-                            .border(1.dp, DividerColor)
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            "No files open",
-                            color = TextGray,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
-            if (filePath != "empty") {
-                FloatingActionButton(
-                    onClick = {
-                        viewModel.saveFile()
-                        val encodedPath = java.net.URLEncoder.encode(filePath, "UTF-8")
-                        navController.navigate("preview/$encodedPath")
-                    },
-                    containerColor = PrimaryBlue,
-                    contentColor = Color.White,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.padding(bottom = 60.dp) // Space for bottom toolbar
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Preview", modifier = Modifier.size(32.dp))
-                }
-            }
-        },
-        bottomBar = {
-            // Quick Tool Bar - Context aware based on file type and selection
-            Surface(
-                color = BackgroundDark,
-                modifier = Modifier.fillMaxWidth(),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    // Show tools based on file type and selection state
-                    val toolbarTools = if (hasSelection) {
-                        fileType.getFormattingTools()
-                    } else {
-                        fileType.getToolbarTools(
-                            onShowValidation = { title, message, isError ->
-                                validationTitle = title
-                                validationMessage = message
-                                validationIsError = isError
-                                showValidationDialog = true
                             },
-                            onShowWordCount = { showWordCountDialog = true },
-                            onShowFindReplace = { 
-                                searchReplaceInitialMode = "replace"
-                                showSearchReplaceSheet = true 
-                            }
-                        )
-                    }
+                            floatingActionButton = {
+                                if (currentFile != null) {
+                                     FloatingActionButton(
+                                         onClick = {
+                                             viewModel.saveFile()
+                                             val encodedPath = java.net.URLEncoder.encode(currentFile!!.path, "UTF-8")
+                                             navController.navigate("preview/$encodedPath")
+                                         },
+                                         containerColor = PrimaryBlue,
+                                         contentColor = Color.White,
+                                         shape = RoundedCornerShape(16.dp),
+                                         modifier = Modifier.padding(bottom = 60.dp) // Space for bottom toolbar
+                                     ) {
+                                         Icon(Icons.Default.PlayArrow, contentDescription = "Preview", modifier = Modifier.size(32.dp))
+                                     }
+                                }
+                            },
+                            bottomBar = {
+                                // Quick Tool Bar - Context aware based on file type and selection
+                                Surface(
+                                    color = BackgroundDark,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceAround
+                                    ) {
+                                        // Show tools based on file type and selection state
+                                        val toolbarTools = if (hasSelection) {
+                                            fileType.getFormattingTools()
+                                        } else {
+                                            fileType.getToolbarTools(
+                                                onShowValidation = { title, message, isError ->
+                                                    validationTitle = title
+                                                    validationMessage = message
+                                                    validationIsError = isError
+                                                    showValidationDialog = true
+                                                },
+                                                onShowWordCount = { showWordCountDialog = true },
+                                                onShowFindReplace = {
+                                                    searchReplaceInitialMode = "replace"
+                                                    showSearchReplaceSheet = true
+                                                }
+                                            )
+                                        }
 
-                    toolbarTools.forEach { tool ->
-                        EditorToolIcon(
-                            icon = tool.icon,
-                            contentDescription = tool.description,
-                            isSelected = hasSelection,
-                            onClick = { 
-                                if (tool.icon == Icons.Outlined.AttachFile) {
-                                    showAttachBottomSheet = true
-                                } else {
-                                    tool.action(
-                                        viewModel, 
-                                        textFieldValue.text, 
-                                        selectedText, 
-                                        if (hasSelection) textFieldValue.selection else null
-                                    )
-                                    // Clear selection after formatting
-                                    if (hasSelection) {
-                                        textFieldValue = TextFieldValue(
-                                            text = viewModel.content.value,
-                                            selection = TextRange(textFieldValue.selection.end)
+                                        toolbarTools.forEach { tool ->
+                                            EditorToolIcon(
+                                                icon = tool.icon,
+                                                contentDescription = tool.description,
+                                                isSelected = hasSelection,
+                                                onClick = {
+                                                    if (tool.icon == Icons.Outlined.AttachFile) {
+                                                        showAttachBottomSheet = true
+                                                    } else {
+                                                        tool.action(
+                                                            viewModel,
+                                                            textFieldValue.text,
+                                                            selectedText,
+                                                            if (hasSelection) textFieldValue.selection else null
+                                                        )
+                                                        // Clear selection after formatting
+                                                        if (hasSelection) {
+                                                            textFieldValue = TextFieldValue(
+                                                                text = viewModel.content.value,
+                                                                selection = TextRange(textFieldValue.selection.end)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        ) { paddingValues ->
+                            Row(
+                                modifier = Modifier
+                                    .padding(paddingValues)
+                                    .fillMaxSize()
+                            ) {
+                                // Line Numbers Gutter
+                                Column(
+                                    modifier = Modifier
+                                        .width(48.dp)
+                                        .fillMaxHeight()
+                                        .background(GutterColor)
+                                        .verticalScroll(rememberScrollState()), // Note: Syncing scroll is complex, simplified here
+                                    horizontalAlignment = Alignment.End
+                                ) {
+                                    // Simulate line numbers based on content lines
+                                    val lineCount = content.count { it == '\n' } + 1
+                                    // Limit rendered lines for performance in this basic implementation
+                                    // In a real app, use a proper code editor library
+                                    val displayLines = minOf(lineCount, 100)
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    repeat(displayLines) { index ->
+                                        Text(
+                                            text = "${index + 1}",
+                                            color = if ((index + 1) % 5 == 0) PrimaryBlue.copy(alpha = 0.6f) else TextGray.copy(alpha = 0.3f),
+                                            fontSize = 14.sp,
+                                            fontFamily = fontFamily,
+                                            modifier = Modifier.padding(end = 12.dp, bottom = 2.dp) // Approximate line height match
+                                        )
+                                    }
+                                }
+
+                                // Editor Surface
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .background(BackgroundDark)
+                                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                                ) {
+                                    // Build VisualTransformation for search highlighting
+                                    val appColors = LocalAppColors.current
+                                    val searchHighlightTransformation = remember(searchMatchRanges, currentSearchMatchIndex, replaceHighlight) {
+                                        SearchHighlightTransformation(
+                                            matchRanges = searchMatchRanges,
+                                            currentMatchIndex = currentSearchMatchIndex,
+                                            searchHighlightColor = appColors.searchHighlight,
+                                            currentMatchColor = appColors.searchHighlight.copy(alpha = 0.6f),
+                                            replaceHighlight = replaceHighlight
+                                        )
+                                    }
+
+                                    SelectionContainer {
+                                        TextField(
+                                            value = textFieldValue,
+                                            onValueChange = { newValue ->
+                                                textFieldValue = newValue
+                                                viewModel.updateContent(newValue.text)
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .verticalScroll(editorScrollState),
+                                            textStyle = TextStyle(
+                                                color = TextWhite,
+                                                fontSize = 15.sp,
+                                                fontFamily = fontFamily,
+                                                lineHeight = 22.sp
+                                            ),
+                                            visualTransformation = searchHighlightTransformation,
+                                            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                focusedIndicatorColor = Color.Transparent,
+                                                unfocusedIndicatorColor = Color.Transparent
+                                            )
                                         )
                                     }
                                 }
                             }
-                        )
-                    }
-                }
-            }
-        }
-    ) { paddingValues ->
-        Row(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-        ) {
-            // Line Numbers Gutter
-            Column(
-                modifier = Modifier
-                    .width(48.dp)
-                    .fillMaxHeight()
-                    .background(GutterColor)
-                    .verticalScroll(rememberScrollState()), // Note: Syncing scroll is complex, simplified here
-                horizontalAlignment = Alignment.End
-            ) {
-                // Simulate line numbers based on content lines
-                val lineCount = content.count { it == '\n' } + 1
-                // Limit rendered lines for performance in this basic implementation
-                // In a real app, use a proper code editor library
-                val displayLines = minOf(lineCount, 100)
+                        }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                repeat(displayLines) { index ->
-                    Text(
-                        text = "${index + 1}",
-                        color = if ((index + 1) % 5 == 0) PrimaryBlue.copy(alpha = 0.6f) else TextGray.copy(alpha = 0.3f),
-                        fontSize = 14.sp,
-                        fontFamily = fontFamily,
-                        modifier = Modifier.padding(end = 12.dp, bottom = 2.dp) // Approximate line height match
-                    )
-                }
-            }
-
-            // Editor Surface
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(BackgroundDark)
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
-            ) {
-                // Build VisualTransformation for search highlighting
-                val appColors = LocalAppColors.current
-                val searchHighlightTransformation = remember(searchMatchRanges, currentSearchMatchIndex, replaceHighlight) {
-                    SearchHighlightTransformation(
-                        matchRanges = searchMatchRanges,
-                        currentMatchIndex = currentSearchMatchIndex,
-                        searchHighlightColor = appColors.searchHighlight,
-                        currentMatchColor = appColors.searchHighlight.copy(alpha = 0.6f),
-                        replaceHighlight = replaceHighlight
-                    )
-                }
-
-                SelectionContainer {
-                    TextField(
-                        value = textFieldValue,
-                        onValueChange = { newValue ->
-                            textFieldValue = newValue
-                            viewModel.updateContent(newValue.text)
-                        },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(editorScrollState),
-                        textStyle = TextStyle(
-                            color = TextWhite,
-                            fontSize = 15.sp,
-                            fontFamily = fontFamily,
-                            lineHeight = 22.sp
-                        ),
-                        visualTransformation = searchHighlightTransformation,
-                        colors = androidx.compose.material3.TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    // Close File Confirmation Dialog
-    if (showCloseFileDialog && fileIndexToClose != null) {
-        AlertDialog(
-            onDismissRequest = { 
-                showCloseFileDialog = false
-                fileIndexToClose = null
-            },
-            title = { Text("Unsaved Changes", color = TextWhite) },
-            text = { 
-                Text(
-                    "Do you want to save changes to ${openFiles.getOrNull(fileIndexToClose!!)?.name ?: "this file"}?",
-                    color = TextGray
-                ) 
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        fileIndexToClose?.let { viewModel.saveAndCloseFile(it) }
-                        showCloseFileDialog = false
-                        fileIndexToClose = null
-                    }
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        fileIndexToClose?.let { viewModel.closeFile(it, forceClose = true) }
-                        showCloseFileDialog = false
-                        fileIndexToClose = null
-                    }
-                ) {
-                    Text("Don't Save")
-                }
-            },
-            containerColor = SurfaceDark
-        )
-    }
-
-    // File Not Found Dialog
-    if (fileNotFoundError != null) {
-        val (errorIndex, fileName) = fileNotFoundError!!
-        AlertDialog(
-            onDismissRequest = { 
-                viewModel.closeFile(errorIndex, forceClose = true)
-                viewModel.clearFileNotFoundError()
-            },
-            title = { Text("File Not Found", color = TextWhite) },
-            text = { 
-                Text(
-                    "The file \"$fileName\" no longer exists. It may have been deleted.",
-                    color = TextGray
-                ) 
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.closeFile(errorIndex, forceClose = true)
-                        viewModel.clearFileNotFoundError()
-                    }
-                ) {
-                    Text("OK")
-                }
-            },
-            containerColor = SurfaceDark
-        )
-    }
-
-    // Bottom Sheets
-    if (showAttachBottomSheet) {
-        AttachBottomSheet(
-            currentFile = currentFile,
-            onDismiss = { showAttachBottomSheet = false },
-            onSave = {
-                if (currentFile != null) {
-                    viewModel.saveFile()
-                } else {
-                    showSaveAsBottomSheet = true
-                }
-                showAttachBottomSheet = false
-            },
-            onOpenFile = {
-                filePickerLauncher.launch("*/*")
-                showAttachBottomSheet = false
-            },
-            onCreateNewFile = {
-                showFileTypeSelectionBottomSheet = true
-                showAttachBottomSheet = false
-            }
-        )
-    }
-
-    if (showFileTypeSelectionBottomSheet) {
-        EditorFileTypeSelectionBottomSheet(
-            onDismiss = { showFileTypeSelectionBottomSheet = false },
-            onFileTypeSelected = { type, content ->
-                val extension = when (type) {
-                    "Markdown" -> "md"
-                    "JSON" -> "json"
-                    "YAML" -> "yaml"
-                    "XML" -> "xml"
-                    "HTML" -> "html"
-                    "Text" -> "txt"
-                    "Log" -> "log"
-                    "CSV" -> "csv"
-                    else -> "txt"
-                }
-                val fileName = "untitled.$extension"
-                
-                // Create new file using ViewModel (adds to tabs automatically)
-                viewModel.createNewFile(fileName, content)
-                showFileTypeSelectionBottomSheet = false
-            }
-        )
-    }
-
-    if (showSaveAsBottomSheet) {
-        SaveAsBottomSheet(
-            onDismiss = { showSaveAsBottomSheet = false },
-            onSaveAs = {
-                saveAsLauncher.launch("untitled.txt")
-                showSaveAsBottomSheet = false
-            }
-        )
-    }
-    
-    // More Options Bottom Sheet (replaces dropdown menu)
-    if (showMoreOptionsBottomSheet) {
-        MoreOptionsBottomSheet(
-            onDismiss = { showMoreOptionsBottomSheet = false },
-            onShareAsPDF = {
-                showMoreOptionsBottomSheet = false
-                currentFile?.let {
-                    viewModel.saveFile()
-                    val encodedPath = java.net.URLEncoder.encode(it.path, "UTF-8")
-                    navController.navigate("preview/$encodedPath")
-                }
-            },
-            onShareFile = {
-                showMoreOptionsBottomSheet = false
-                currentFile?.let { file ->
-                    try {
-                        val shareFile = File(file.path)
-                        if (shareFile.exists()) {
-                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                shareFile
+                        // Overlay Global Search UI on top of Scaffold content
+                        if (showGlobalSearch) {
+                            GlobalSearchOverlay(
+                                onDismiss = { showGlobalSearch = false }
                             )
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = when (file.name.substringAfterLast(".", "").lowercase()) {
-                                    "md", "markdown" -> "text/markdown"
-                                    "json" -> "application/json"
-                                    "xml" -> "application/xml"
-                                    "yaml", "yml" -> "text/yaml"
-                                    "html", "htm" -> "text/html"
-                                    "csv" -> "text/csv"
-                                    else -> "text/plain"
+                        }
+
+                    } // End Wrapper Box
+
+                    // Close File Confirmation Dialog
+                    if (showCloseFileDialog && fileIndexToClose != null) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                showCloseFileDialog = false
+                                fileIndexToClose = null
+                            },
+                            title = { Text("Unsaved Changes", color = TextWhite) },
+                            text = {
+                                Text(
+                                    "Do you want to save changes to ${openFiles.getOrNull(fileIndexToClose!!)?.name ?: "this file"}?",
+                                    color = TextGray
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        fileIndexToClose?.let { viewModel.saveAndCloseFile(it) }
+                                        showCloseFileDialog = false
+                                        fileIndexToClose = null
+                                    }
+                                ) {
+                                    Text("Save")
                                 }
-                                putExtra(Intent.EXTRA_STREAM, fileUri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share ${file.name}"))
-                        }
-                    } catch (e: Exception) {
-                        // Fallback: share as plain text
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, content)
-                            putExtra(Intent.EXTRA_SUBJECT, file.name)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share ${file.name}"))
-                    }
-                }
-            },
-            onPrint = {
-                showMoreOptionsBottomSheet = false
-                currentFile?.let {
-                    viewModel.saveFile()
-                    val encodedPath = java.net.URLEncoder.encode(it.path, "UTF-8")
-                    navController.navigate("preview/$encodedPath")
-                }
-            }
-        )
-    }
-
-    // Validation Result Dialog
-    if (showValidationDialog) {
-        AlertDialog(
-            onDismissRequest = { showValidationDialog = false },
-            title = {
-                Text(
-                    validationTitle,
-                    color = if (validationIsError) Color(0xFFF44336) else Color(0xFF4CAF50),
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = {
-                Text(
-                    validationMessage,
-                    color = TextGray,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp
-                )
-            },
-            confirmButton = {
-                Button(onClick = { showValidationDialog = false }) {
-                    Text("OK")
-                }
-            },
-            containerColor = SurfaceDark
-        )
-    }
-
-    // Word Count Dialog
-    if (showWordCountDialog) {
-        val wordCount = content.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
-        val charCount = content.length
-        val charNoSpaceCount = content.replace(Regex("\\s"), "").length
-        val lineCount = content.lines().size
-        val paragraphCount = content.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }.size
-
-        AlertDialog(
-            onDismissRequest = { showWordCountDialog = false },
-            title = {
-                Text("Word Count", color = TextWhite, fontWeight = FontWeight.SemiBold)
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WordCountRow("Words", wordCount)
-                    WordCountRow("Characters", charCount)
-                    WordCountRow("Characters (no spaces)", charNoSpaceCount)
-                    WordCountRow("Lines", lineCount)
-                    WordCountRow("Paragraphs", paragraphCount)
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showWordCountDialog = false }) {
-                    Text("OK")
-                }
-            },
-            containerColor = SurfaceDark
-        )
-    }
-
-    // Search & Replace Bottom Sheet
-    if (showSearchReplaceSheet) {
-        SearchReplaceBottomSheet(
-            content = content,
-            initialMode = searchReplaceInitialMode,
-            onDismiss = {
-                showSearchReplaceSheet = false
-                // Clear all highlights when sheet is dismissed
-                searchMatchRanges = emptyList()
-                currentSearchMatchIndex = 0
-                replaceHighlight = null
-            },
-            onReplace = { newContent ->
-                viewModel.updateContent(newContent)
-                textFieldValue = TextFieldValue(
-                    text = newContent,
-                    selection = TextRange(newContent.length)
-                )
-            },
-            onMatchesChanged = { matches, currentIndex ->
-                searchMatchRanges = matches
-                currentSearchMatchIndex = currentIndex
-            },
-            onReplaceHighlight = { highlight ->
-                replaceHighlight = highlight
-            }
-        )
-    }
-    } // End ModalNavigationDrawer
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun EditorTab(
-    title: String, 
-    isActive: Boolean,
-    hasUnsavedChanges: Boolean = false,
-    onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {}
-) {
-    Column(
-        modifier = Modifier
-            .width(IntrinsicSize.Max)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.Article,
-                contentDescription = null,
-                tint = if (isActive) PrimaryBlue else TextGray,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = if (hasUnsavedChanges) "$title *" else title,
-                color = if (isActive) PrimaryBlue else TextGray,
-                fontSize = 14.sp,
-                fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal
-            )
-        }
-        if (isActive) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .background(PrimaryBlue)
-            )
-        }
-    }
-}
-
-@Composable
-fun EditorToolIcon(icon: ImageVector, contentDescription: String, isSelected: Boolean = false, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = if (isSelected) PrimaryBlue else TextGray,
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-// File Type and Toolbar Tools
-enum class FileType {
-    MARKDOWN, JSON, YAML, XML, HTML, TEXT, LOG, CSV, UNKNOWN;
-
-    companion object {
-        fun fromExtension(extension: String): FileType = when (extension.lowercase()) {
-            "md" -> MARKDOWN
-            "json" -> JSON
-            "yaml", "yml" -> YAML
-            "xml" -> XML
-            "html", "htm" -> HTML
-            "txt" -> TEXT
-            "log" -> LOG
-            "csv" -> CSV
-            else -> UNKNOWN
-        }
-    }
-
-    fun getToolbarTools(
-        onShowValidation: (title: String, message: String, isError: Boolean) -> Unit = { _, _, _ -> },
-        onShowWordCount: () -> Unit = {},
-        onShowFindReplace: () -> Unit = {}
-    ): List<EditorTool> = when (this) {
-        MARKDOWN -> listOf(
-            EditorTool(Icons.Default.FormatBold, "Insert Bold") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content****")
-            },
-            EditorTool(Icons.Default.FormatItalic, "Insert Italic") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content**")
-            },
-            EditorTool(Icons.Default.Link, "Insert Link") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content[](url)")
-            },
-            EditorTool(Icons.Default.Code, "Insert Code Block") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content```\n\n```")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.FormatListBulleted, "Insert List") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content\n- ")
-            },
-            EditorTool(Icons.Outlined.Image, "Insert Image") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content![](image-url)")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-        JSON -> listOf(
-            EditorTool(Icons.Default.Code, "Format JSON") { viewModel, content, selectedText, range ->
-                try {
-                    val json = org.json.JSONObject(content)
-                    viewModel.updateContent(json.toString(2))
-                } catch (e: Exception) {
-                    // Invalid JSON, keep as is
-                }
-            },
-            EditorTool(Icons.Default.Description, "Validate JSON") { _, content, _, _ ->
-                try {
-                    org.json.JSONObject(content)
-                    onShowValidation("JSON Validation", "✓ Valid JSON - No errors found.", false)
-                } catch (e: Exception) {
-                    try {
-                        org.json.JSONArray(content)
-                        onShowValidation("JSON Validation", "✓ Valid JSON Array - No errors found.", false)
-                    } catch (e2: Exception) {
-                        onShowValidation("JSON Validation Error", "✗ Invalid JSON:\n${e.message}", true)
-                    }
-                }
-            },
-            EditorTool(Icons.Default.Code, "Add Object") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content{\n  \"key\": \"value\"\n}")
-            },
-            EditorTool(Icons.Default.Code, "Add Array") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content[\n  \"item1\",\n  \"item2\"\n]")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-        YAML -> listOf(
-            EditorTool(Icons.Default.Code, "Format YAML") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("# YAML Configuration\nkey: value\nnested:\n  subkey: subvalue\n")
-            },
-            EditorTool(Icons.Default.Description, "Validate YAML") { _, content, _, _ ->
-                try {
-                    val yaml = org.yaml.snakeyaml.Yaml()
-                    yaml.load<Any>(content)
-                    onShowValidation("YAML Validation", "✓ Valid YAML - No errors found.", false)
-                } catch (e: Exception) {
-                    onShowValidation("YAML Validation Error", "✗ Invalid YAML:\n${e.message}", true)
-                }
-            },
-            EditorTool(Icons.Default.Code, "Add Section") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content\n# New Section\nsection:\n  key: value")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-        XML -> listOf(
-            EditorTool(Icons.Default.Code, "Format XML") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("<?xml version=\"1.0\"?>\n<root>\n  <element>${content}</element>\n</root>")
-            },
-            EditorTool(Icons.Default.Description, "Validate XML") { _, content, _, _ ->
-                try {
-                    val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
-                    val builder = factory.newDocumentBuilder()
-                    builder.parse(org.xml.sax.InputSource(java.io.StringReader(content)))
-                    onShowValidation("XML Validation", "✓ Valid XML - No errors found.", false)
-                } catch (e: Exception) {
-                    onShowValidation("XML Validation Error", "✗ Invalid XML:\n${e.message}", true)
-                }
-            },
-            EditorTool(Icons.Default.Code, "Add Element") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content<element></element>")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-        HTML -> listOf(
-            EditorTool(Icons.Default.FormatBold, "Insert Bold") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content<strong></strong>")
-            },
-            EditorTool(Icons.Default.FormatItalic, "Insert Italic") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content<em></em>")
-            },
-            EditorTool(Icons.Default.Link, "Insert Link") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content<a href=\"url\"></a>")
-            },
-            EditorTool(Icons.Default.Code, "Insert Code") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content<code></code>")
-            },
-            EditorTool(Icons.Default.Code, "Insert Paragraph") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content<p></p>")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-        CSV -> listOf(
-            EditorTool(Icons.Default.Description, "Format CSV") { viewModel, content, _, _ ->
-                // Auto-align CSV columns by padding cells
-                try {
-                    val rows = content.split("\n").filter { it.isNotBlank() }
-                    if (rows.isNotEmpty()) {
-                        val parsedRows = rows.map { row ->
-                            row.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)".toRegex())
-                                .map { it.trim().removeSurrounding("\"") }
-                        }
-                        val colCount = parsedRows.maxOf { it.size }
-                        val colWidths = (0 until colCount).map { col ->
-                            parsedRows.maxOf { row -> (row.getOrNull(col) ?: "").length }
-                        }
-                        val formatted = parsedRows.joinToString("\n") { row ->
-                            (0 until colCount).joinToString(", ") { col ->
-                                (row.getOrNull(col) ?: "").padEnd(colWidths[col])
-                            }
-                        }
-                        viewModel.updateContent(formatted)
-                    }
-                } catch (e: Exception) {
-                    // Keep content as-is on error
-                }
-            },
-            EditorTool(Icons.Default.Code, "Add Row") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content,New Value\n")
-            },
-            EditorTool(Icons.Default.Code, "Add Column") { viewModel, content, selectedText, range ->
-                viewModel.updateContent("$content,New Column")
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-        TEXT, LOG, UNKNOWN -> listOf(
-            EditorTool(Icons.Default.Description, "Word Count") { _, _, _, _ ->
-                onShowWordCount()
-            },
-            EditorTool(Icons.Default.Code, "Line Numbers") { viewModel, content, _, _ ->
-                // Add/remove line numbers prefix to each line
-                val lines = content.lines()
-                val hasLineNumbers = lines.firstOrNull()?.matches(Regex("^\\d+[:|.]\\s.*")) == true
-                val result = if (hasLineNumbers) {
-                    lines.joinToString("\n") { it.replace(Regex("^\\d+[:|.]\\s"), "") }
-                } else {
-                    lines.mapIndexed { index, line -> "${index + 1}: $line" }.joinToString("\n")
-                }
-                viewModel.updateContent(result)
-            },
-            EditorTool(Icons.Default.Code, "Find & Replace") { _, _, _, _ ->
-                onShowFindReplace()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Undo, "Undo") { viewModel, content, selectedText, range ->
-                viewModel.undo()
-            },
-            EditorTool(Icons.AutoMirrored.Filled.Redo, "Redo") { viewModel, content, selectedText, range ->
-                viewModel.redo()
-            }
-        )
-    }
-    
-    // Formatting tools for selected text - context-aware based on file type
-    fun getFormattingTools(): List<EditorTool> = when (this) {
-        MARKDOWN -> listOf(
-            EditorTool(Icons.Default.FormatBold, "Bold") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before**$selectedText**$after")
-                }
-            },
-            EditorTool(Icons.Default.FormatItalic, "Italic") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before*$selectedText*$after")
-                }
-            },
-            EditorTool(Icons.Default.FormatStrikethrough, "Strikethrough") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before~~$selectedText~~$after")
-                }
-            },
-            EditorTool(Icons.Default.Link, "Link") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before[$selectedText](url)$after")
-                }
-            },
-            EditorTool(Icons.Default.Code, "Inline Code") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before`$selectedText`$after")
-                }
-            },
-            EditorTool(Icons.AutoMirrored.Filled.FormatListBulleted, "List") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    val listItems = selectedText.lines().joinToString("\n") { "- $it" }
-                    viewModel.updateContent("$before$listItems$after")
-                }
-            },
-            EditorTool(Icons.Default.FormatQuote, "Blockquote") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    val quoted = selectedText.lines().joinToString("\n") { "> $it" }
-                    viewModel.updateContent("$before$quoted$after")
-                }
-            }
-        )
-        HTML -> listOf(
-            EditorTool(Icons.Default.FormatBold, "Bold") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before<strong>$selectedText</strong>$after")
-                }
-            },
-            EditorTool(Icons.Default.FormatItalic, "Italic") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before<em>$selectedText</em>$after")
-                }
-            },
-            EditorTool(Icons.Default.Link, "Link") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before<a href=\"url\">$selectedText</a>$after")
-                }
-            },
-            EditorTool(Icons.Default.Code, "Code") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before<code>$selectedText</code>$after")
-                }
-            }
-        )
-        JSON -> listOf(
-            EditorTool(Icons.Default.Code, "Format") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    try {
-                        val json = org.json.JSONObject(selectedText.trim())
-                        val before = content.take(range.start)
-                        val after = content.substring(range.end)
-                        viewModel.updateContent("$before${json.toString(2)}$after")
-                    } catch (e: Exception) {
-                        // Not valid JSON, keep as is
-                    }
-                }
-            },
-            EditorTool(Icons.Default.Code, "Wrap Object") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before{\"value\": $selectedText}$after")
-                }
-            },
-            EditorTool(Icons.Default.Code, "Wrap Array") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before[$selectedText]$after")
-                }
-            }
-        )
-        XML -> listOf(
-            EditorTool(Icons.Default.Code, "Wrap Element") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before<element>$selectedText</element>$after")
-                }
-            },
-            EditorTool(Icons.Default.Code, "Add Attribute") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before<element attribute=\"value\">$selectedText</element>$after")
-                }
-            }
-        )
-        YAML -> listOf(
-            EditorTool(Icons.Default.Code, "Comment") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    val commented = selectedText.lines().joinToString("\n") { "# $it" }
-                    viewModel.updateContent("$before$commented$after")
-                }
-            },
-            EditorTool(Icons.Default.Code, "Make Key") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before$selectedText: value$after")
-                }
-            }
-        )
-        TEXT, LOG, CSV, UNKNOWN -> listOf(
-            EditorTool(Icons.Default.Code, "Uppercase") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before${selectedText.uppercase()}$after")
-                }
-            },
-            EditorTool(Icons.Default.Code, "Lowercase") { viewModel, content, selectedText, range ->
-                if (range != null && selectedText.isNotEmpty()) {
-                    val before = content.take(range.start)
-                    val after = content.substring(range.end)
-                    viewModel.updateContent("$before${selectedText.lowercase()}$after")
-                }
-            }
-        )
-    }
-
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditorFileTypeSelectionBottomSheet(onDismiss: () -> Unit, onFileTypeSelected: (String, String) -> Unit) {
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SurfaceDark,
-        contentColor = TextWhite
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = null,
-                    tint = PrimaryBlue,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Create New File",
-                    color = TextWhite,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            // File Types List
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val fileTypes = listOf(
-                    "Markdown" to "# New Markdown File\n\nWrite your content here...",
-                    "JSON" to "{\n  \"key\": \"value\"\n}",
-                    "YAML" to "key: value\nnested:\n  subkey: subvalue",
-                    "XML" to "<?xml version=\"1.0\"?>\n<root>\n  <element>content</element>\n</root>",
-                    "HTML" to "<!DOCTYPE html>\n<html>\n<head>\n  <title>Title</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>",
-                    "Text" to "",
-                    "Log" to "",
-                    "CSV" to "Column1,Column2,Column3\nValue1,Value2,Value3"
-                )
-
-                fileTypes.forEach { (type, content) ->
-                    FileTypeItem(
-                        type = type,
-                        onClick = {
-                            onFileTypeSelected(type, content)
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-fun FileTypeItem(type: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val (icon, color) = getFileIconAndColorEditorScreen(".$type".lowercase())
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = type,
-            color = TextWhite,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MoreOptionsBottomSheet(
-    onDismiss: () -> Unit,
-    onShareAsPDF: () -> Unit,
-    onShareFile: () -> Unit,
-    onPrint: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SurfaceDark,
-        contentColor = TextWhite
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) {
-            Text(
-                "More Options",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextWhite,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-            )
-            
-            androidx.compose.material3.HorizontalDivider(
-                color = DividerColor,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-            
-            // Share as PDF
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onShareAsPDF)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Print,
-                    contentDescription = null,
-                    tint = PrimaryBlue,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "Share as PDF",
-                        fontSize = 16.sp,
-                        color = TextWhite
-                    )
-                    Text(
-                        "Convert and share as PDF",
-                        fontSize = 12.sp,
-                        color = TextGray
-                    )
-                }
-            }
-            
-            // Share File
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onShareFile)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = null,
-                    tint = FileIconHelper.IconOrange,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "Share File",
-                        fontSize = 16.sp,
-                        color = TextWhite
-                    )
-                    Text(
-                        "Share file with other apps",
-                        fontSize = 12.sp,
-                        color = TextGray
-                    )
-                }
-            }
-            
-            // Print
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onPrint)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Print,
-                    contentDescription = null,
-                    tint = FileIconHelper.IconEmerald,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "Print",
-                        fontSize = 16.sp,
-                        color = TextWhite
-                    )
-                    Text(
-                        "Print document",
-                        fontSize = 12.sp,
-                        color = TextGray
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AttachBottomSheet(
-    currentFile: MarkdownFile?,
-    onDismiss: () -> Unit,
-    onSave: () -> Unit,
-    onOpenFile: () -> Unit,
-    onCreateNewFile: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SurfaceDark,
-        contentColor = TextWhite
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.AttachFile,
-                    contentDescription = null,
-                    tint = PrimaryBlue,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "File Options",
-                    color = TextWhite,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            // Options
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Only show Save option if there's a file opened
-                if (currentFile != null) {
-                    AttachOptionItem(
-                        icon = Icons.Default.Save,
-                        title = "Save",
-                        subtitle = "Save changes to ${currentFile.name}",
-                        onClick = onSave
-                    )
-                } else {
-                    AttachOptionItem(
-                        icon = Icons.Default.Save,
-                        title = "Save As",
-                        subtitle = "Save to a new file",
-                        onClick = onSave
-                    )
-                }
-                AttachOptionItem(
-                    icon = Icons.Rounded.FolderOpen,
-                    title = "Open File",
-                    subtitle = "Open an existing file",
-                    onClick = onOpenFile
-                )
-                AttachOptionItem(
-                    icon = Icons.Rounded.Add,
-                    title = "Create New File",
-                    subtitle = "Create a new file from template",
-                    onClick = onCreateNewFile
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-fun AttachOptionItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = PrimaryBlue,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = TextWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = subtitle,
-                color = TextGray,
-                fontSize = 14.sp
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            contentDescription = null,
-            tint = TextGray,
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SaveAsBottomSheet(
-    onDismiss: () -> Unit,
-    onSaveAs: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SurfaceDark,
-        contentColor = TextWhite
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Save,
-                    contentDescription = null,
-                    tint = PrimaryBlue,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Save As",
-                    color = TextWhite,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Text(
-                text = "Choose a location to save the file",
-                color = TextGray,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-            )
-
-            // Save As button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSaveAs() }
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.FolderOpen,
-                    contentDescription = null,
-                    tint = PrimaryBlue,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = "Select Location",
-                    color = TextWhite,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
-}
-
-data class EditorTool(
-    val icon: ImageVector,
-    val description: String,
-    val action: (EditorViewModel, String, String, TextRange?) -> Unit
-)
-
-// Helper functions for file import
-fun getFileNameFromUriEditorScreen(context: android.content.Context, uri: Uri): String? {
-    val cursor = context.contentResolver.query(uri, null, null, null, null)
-    return cursor?.use {
-        if (it.moveToFirst()) {
-            val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            it.getString(nameIndex)
-        } else null
-    }
-}
-
-fun copyFileToAppStorageEditorScreen(context: android.content.Context, uri: Uri, fileName: String) {
-    try {
-        val inputStream = context.contentResolver.openInputStream(uri)
-        val outputDir = context.getExternalFilesDir(null)?.let { File(it, "Files") } ?: return
-        if (!outputDir.exists()) outputDir.mkdirs()
-        val outputFile = File(outputDir, fileName)
-        inputStream?.use { input ->
-            outputFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-}
-
-// --- Word Count Row helper ---
-@Composable
-fun WordCountRow(label: String, count: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, color = TextGray, fontSize = 14.sp)
-        Text(
-            count.toString(),
-            color = PrimaryBlue,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-// --- Search & Replace Bottom Sheet ---
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SearchReplaceBottomSheet(
-    content: String,
-    initialMode: String = "search",
-    onDismiss: () -> Unit,
-    onReplace: (String) -> Unit,
-    onMatchesChanged: (matches: List<IntRange>, currentIndex: Int) -> Unit = { _, _ -> },
-    onReplaceHighlight: (Pair<IntRange, Color>?) -> Unit = {}
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val replaceScope = androidx.compose.runtime.rememberCoroutineScope()
-    val appColors = LocalAppColors.current
-    var mode by remember { mutableStateOf(initialMode) } // "search" or "replace"
-    var searchText by remember { mutableStateOf("") }
-    var replaceText by remember { mutableStateOf("") }
-    var useRegex by remember { mutableStateOf(false) }
-    var caseSensitive by remember { mutableStateOf(false) }
-    var matchCount by remember { mutableStateOf(0) }
-    var currentMatchIndex by remember { mutableStateOf(0) }
-    var matches by remember { mutableStateOf<List<IntRange>>(emptyList()) }
-
-    // Propagate matches to parent for highlighting
-    LaunchedEffect(matches, currentMatchIndex) {
-        onMatchesChanged(matches, currentMatchIndex)
-    }
-
-    // Compute matches whenever search text, content, or options change
-    LaunchedEffect(searchText, content, useRegex, caseSensitive) {
-        if (searchText.isEmpty()) {
-            matchCount = 0
-            currentMatchIndex = 0
-            matches = emptyList()
-        } else {
-            try {
-                val found = mutableListOf<IntRange>()
-                if (useRegex) {
-                    val flags = if (caseSensitive) setOf<RegexOption>() else setOf(RegexOption.IGNORE_CASE)
-                    Regex(searchText, flags).findAll(content).forEach {
-                        found.add(it.range)
-                    }
-                } else {
-                    val searchIn = if (caseSensitive) content else content.lowercase()
-                    val searchFor = if (caseSensitive) searchText else searchText.lowercase()
-                    var startIndex = 0
-                    while (true) {
-                        val index = searchIn.indexOf(searchFor, startIndex)
-                        if (index < 0) break
-                        found.add(index until (index + searchFor.length))
-                        startIndex = index + 1
-                    }
-                }
-                matches = found
-                matchCount = found.size
-                if (currentMatchIndex >= found.size) currentMatchIndex = 0
-            } catch (e: Exception) {
-                matches = emptyList()
-                matchCount = 0
-                currentMatchIndex = 0
-            }
-        }
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SurfaceDark,
-        contentColor = TextWhite
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp)
-        ) {
-            // Mode selector tabs
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { mode = "search" },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = if (mode == "search") PrimaryBlue else BackgroundDark,
-                        contentColor = if (mode == "search") Color.White else TextGray
-                    ),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Search", fontSize = 14.sp)
-                }
-                Button(
-                    onClick = { mode = "replace" },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = if (mode == "replace") PrimaryBlue else BackgroundDark,
-                        contentColor = if (mode == "replace") Color.White else TextGray
-                    ),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.FindReplace, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Replace", fontSize = 14.sp)
-                }
-            }
-
-            // Search field
-            TextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                placeholder = { Text("Search text...", color = TextGray.copy(alpha = 0.6f)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextGray) },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = TextStyle(color = TextWhite, fontFamily = FontFamily.Monospace, fontSize = 14.sp),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                    focusedContainerColor = BackgroundDark,
-                    unfocusedContainerColor = BackgroundDark,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Replace field (only in replace mode)
-            if (mode == "replace") {
-                TextField(
-                    value = replaceText,
-                    onValueChange = { replaceText = it },
-                    placeholder = { Text("Replace with...", color = TextGray.copy(alpha = 0.6f)) },
-                    leadingIcon = { Icon(Icons.Default.FindReplace, contentDescription = null, tint = TextGray) },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = TextStyle(color = TextWhite, fontFamily = FontFamily.Monospace, fontSize = 14.sp),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        focusedContainerColor = BackgroundDark,
-                        unfocusedContainerColor = BackgroundDark,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    )
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // Options row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { caseSensitive = !caseSensitive }
-                ) {
-                    androidx.compose.material3.Checkbox(
-                        checked = caseSensitive,
-                        onCheckedChange = { caseSensitive = it },
-                        colors = androidx.compose.material3.CheckboxDefaults.colors(
-                            checkedColor = PrimaryBlue,
-                            uncheckedColor = TextGray
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        fileIndexToClose?.let { viewModel.closeFile(it, forceClose = true) }
+                                        showCloseFileDialog = false
+                                        fileIndexToClose = null
+                                    }
+                                ) {
+                                    Text("Don't Save")
+                                }
+                            },
+                            containerColor = SurfaceDark
                         )
-                    )
-                    Text("Aa", color = if (caseSensitive) PrimaryBlue else TextGray, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { useRegex = !useRegex }
-                ) {
-                    androidx.compose.material3.Checkbox(
-                        checked = useRegex,
-                        onCheckedChange = { useRegex = it },
-                        colors = androidx.compose.material3.CheckboxDefaults.colors(
-                            checkedColor = PrimaryBlue,
-                            uncheckedColor = TextGray
+                    }
+
+                    // File Not Found Dialog
+                    if (fileNotFoundError != null) {
+                        val (errorIndex, fileName) = fileNotFoundError!!
+                        AlertDialog(
+                            onDismissRequest = {
+                                viewModel.closeFile(errorIndex, forceClose = true)
+                                viewModel.clearFileNotFoundError()
+                            },
+                            title = { Text("File Not Found", color = TextWhite) },
+                            text = {
+                                Text(
+                                    "The file \"$fileName\" no longer exists. It may have been deleted.",
+                                    color = TextGray
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        viewModel.closeFile(errorIndex, forceClose = true)
+                                        viewModel.clearFileNotFoundError()
+                                    }
+                                ) {
+                                    Text("OK")
+                                }
+                            },
+                            containerColor = SurfaceDark
                         )
-                    )
-                    Text(".*", color = if (useRegex) PrimaryBlue else TextGray, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            // Match count and navigation
-            if (searchText.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        if (matchCount > 0) "${currentMatchIndex + 1} of $matchCount match${if (matchCount != 1) "es" else ""}"
-                        else "No matches found",
-                        color = if (matchCount > 0) Color(0xFF4CAF50) else Color(0xFFF44336),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    // Navigation arrows (prev/next match)
-                    if (matchCount > 1) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            IconButton(
-                                onClick = { currentMatchIndex = if (currentMatchIndex > 0) currentMatchIndex - 1 else matchCount - 1 },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Previous match", tint = PrimaryBlue,
-                                    modifier = Modifier.graphicsLayer(rotationZ = 180f))
-                            }
-                            IconButton(
-                                onClick = { currentMatchIndex = (currentMatchIndex + 1) % matchCount },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Next match", tint = PrimaryBlue)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Replace action buttons (only in replace mode)
-            if (mode == "replace" && searchText.isNotEmpty() && matchCount > 0) {
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Replace current match (one by one) with red→green highlighting
-                    Button(
-                        onClick = {
-                            if (matches.isNotEmpty() && currentMatchIndex < matches.size) {
-                                val matchRange = matches[currentMatchIndex]
-                                replaceScope.launch {
-                                    // Flash red highlight on the text being replaced
-                                    onReplaceHighlight(Pair(matchRange, appColors.replaceHighlightPending))
-                                    delay(300)
-                                    
-                                    // Perform the replacement
-                                    val before = content.substring(0, matchRange.first)
-                                    val after = content.substring(matchRange.last + 1)
-                                    val newContent = "$before$replaceText$after"
-                                    onReplace(newContent)
-                                    
-                                    // Flash green highlight on the replaced text
-                                    val replacedRange = matchRange.first until (matchRange.first + replaceText.length)
-                                    onReplaceHighlight(Pair(replacedRange, appColors.replaceHighlightDone))
-                                    delay(600)
-                                    
-                                    // Clear replace highlight
-                                    onReplaceHighlight(null)
-                                }
-                                // Recalculate will happen via LaunchedEffect, stay on same index
-                                if (currentMatchIndex >= matchCount - 1) {
-                                    currentMatchIndex = 0
-                                }
-                            }
-                        },
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = FileIconHelper.IconOrange,
-                            contentColor = Color.White
-                        ),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Replace", fontSize = 13.sp)
                     }
 
-                    // Replace All
-                    Button(
-                        onClick = {
-                            val result = try {
-                                if (useRegex) {
-                                    val flags = if (caseSensitive) setOf<RegexOption>() else setOf(RegexOption.IGNORE_CASE)
-                                    content.replace(Regex(searchText, flags), replaceText)
+                    // Bottom Sheets
+                    // More Options Bottom Sheet (now contains File options, Find & Replace, and Share/Print options)
+                    if (showMoreOptionsBottomSheet) {
+                        MoreOptionsBottomSheet(
+                            currentFile = currentFile,
+                            onDismiss = { showMoreOptionsBottomSheet = false },
+                            onSave = {
+                                showMoreOptionsBottomSheet = false
+                                if (currentFile != null) {
+                                    viewModel.saveFile()
                                 } else {
-                                    content.replace(searchText, replaceText, ignoreCase = !caseSensitive)
+                                    showSaveAsBottomSheet = true
                                 }
-                            } catch (e: Exception) {
-                                content
+                            },
+                            onOpenFile = {
+                                showMoreOptionsBottomSheet = false
+                                filePickerLauncher.launch("*/*")
+                            },
+                            onCreateNewFile = {
+                                showMoreOptionsBottomSheet = false
+                                showFileTypeSelectionBottomSheet = true
+                            },
+                            onSearch = {
+                                showMoreOptionsBottomSheet = false
+                                searchReplaceInitialMode = "search"
+                                showSearchReplaceSheet = true
+                            },
+                            onShareAsPDF = {
+                                showMoreOptionsBottomSheet = false
+                                currentFile?.let {
+                                    viewModel.saveFile()
+                                    val encodedPath = java.net.URLEncoder.encode(it.path, "UTF-8")
+                                    navController.navigate("preview/$encodedPath")
+                                }
+                            },
+                            onShareFile = {
+                                showMoreOptionsBottomSheet = false
+                                currentFile?.let { file ->
+                                    try {
+                                        val shareFile = File(file.path)
+                                        if (shareFile.exists()) {
+                                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                shareFile
+                                            )
+                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = when (file.name.substringAfterLast(".", "").lowercase()) {
+                                                    "md", "markdown" -> "text/markdown"
+                                                    "json" -> "application/json"
+                                                    "xml" -> "application/xml"
+                                                    "yaml", "yml" -> "text/yaml"
+                                                    "html", "htm" -> "text/html"
+                                                    "csv" -> "text/csv"
+                                                    else -> "text/plain"
+                                                }
+                                                putExtra(Intent.EXTRA_STREAM, fileUri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, "Share ${file.name}"))
+                                        }
+                                    } catch (e: Exception) {
+                                        // Fallback: share as plain text
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, content)
+                                            putExtra(Intent.EXTRA_SUBJECT, file.name)
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Share ${file.name}"))
+                                    }
+                                }
+                            },
+                            onPrint = {
+                                showMoreOptionsBottomSheet = false
+                                currentFile?.let {
+                                    viewModel.saveFile()
+                                    val encodedPath = java.net.URLEncoder.encode(it.path, "UTF-8")
+                                    navController.navigate("preview/$encodedPath")
+                                }
                             }
-                            onReplace(result)
-                            onDismiss()
-                        },
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = PrimaryBlue,
-                            contentColor = Color.White
-                        ),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Replace All", fontSize = 13.sp)
+                        )
+                    }
+
+                    if (showFileTypeSelectionBottomSheet) {
+                        EditorFileTypeSelectionBottomSheet(
+                            onDismiss = { showFileTypeSelectionBottomSheet = false },
+                            onFileTypeSelected = { type, content ->
+                                val extension = when (type) {
+                                    "Markdown" -> "md"
+                                    "JSON" -> "json"
+                                    "YAML" -> "yaml"
+                                    "XML" -> "xml"
+                                    "HTML" -> "html"
+                                    "Text" -> "txt"
+                                    "Log" -> "log"
+                                    "CSV" -> "csv"
+                                    else -> "txt"
+                                }
+                                val fileName = "untitled.$extension"
+
+                                // Create new file using ViewModel (adds to tabs automatically)
+                                viewModel.createNewFile(fileName, content)
+                                showFileTypeSelectionBottomSheet = false
+                            }
+                        )
+                    }
+
+                    if (showSaveAsBottomSheet) {
+                        SaveAsBottomSheet(
+                            onDismiss = { showSaveAsBottomSheet = false },
+                            onSaveAs = {
+                                saveAsLauncher.launch("untitled.txt")
+                                showSaveAsBottomSheet = false
+                            }
+                        )
+                    }
+
+                    // Validation Result Dialog
+                    if (showValidationDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showValidationDialog = false },
+                            title = {
+                                Text(
+                                    validationTitle,
+                                    color = if (validationIsError) Color(0xFFF44336) else Color(0xFF4CAF50),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            },
+                            text = {
+                                Text(
+                                    validationMessage,
+                                    color = TextGray,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.sp
+                                )
+                            },
+                            confirmButton = {
+                                Button(onClick = { showValidationDialog = false }) {
+                                    Text("OK")
+                                }
+                            },
+                            containerColor = SurfaceDark
+                        )
+                    }
+
+                    // Word Count Dialog
+                    if (showWordCountDialog) {
+                        val wordCount = content.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+                        val charCount = content.length
+                        val charNoSpaceCount = content.replace(Regex("\\s"), "").length
+                        val lineCount = content.lines().size
+                        val paragraphCount = content.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }.size
+
+                        AlertDialog(
+                            onDismissRequest = { showWordCountDialog = false },
+                            title = {
+                                Text("Word Count", color = TextWhite, fontWeight = FontWeight.SemiBold)
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    WordCountRow("Words", wordCount)
+                                    WordCountRow("Characters", charCount)
+                                    WordCountRow("Characters (no spaces)", charNoSpaceCount)
+                                    WordCountRow("Lines", lineCount)
+                                    WordCountRow("Paragraphs", paragraphCount)
+                                }
+                            },
+                            confirmButton = {
+                                Button(onClick = { showWordCountDialog = false }) {
+                                    Text("OK")
+                                }
+                            },
+                            containerColor = SurfaceDark
+                        )
+                    }
+
+                    // Search & Replace Bottom Sheet
+                    if (showSearchReplaceSheet) {
+                        SearchReplaceBottomSheet(
+                            content = content,
+                            initialMode = searchReplaceInitialMode,
+                            onDismiss = {
+                                showSearchReplaceSheet = false
+                                // Clear all highlights when sheet is dismissed
+                                searchMatchRanges = emptyList()
+                                currentSearchMatchIndex = 0
+                                replaceHighlight = null
+                            },
+                            onReplace = { newContent ->
+                                viewModel.updateContent(newContent)
+                                textFieldValue = TextFieldValue(
+                                    text = newContent,
+                                    selection = TextRange(newContent.length)
+                                )
+                            },
+                            onMatchesChanged = { matches, currentIndex ->
+                                searchMatchRanges = matches
+                                currentSearchMatchIndex = currentIndex
+                            },
+                            onReplaceHighlight = { highlight ->
+                                replaceHighlight = highlight
+                            }
+                        )
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
-    }
-}
-
-// --- Search Highlight VisualTransformation ---
-/**
- * VisualTransformation that highlights search matches in the editor.
- * All matches get a background highlight color, the current match gets a stronger highlight.
- * An optional replace highlight adds a separate colored span (red for pending, green for done).
- */
-class SearchHighlightTransformation(
-    private val matchRanges: List<IntRange>,
-    private val currentMatchIndex: Int,
-    private val searchHighlightColor: Color,
-    private val currentMatchColor: Color,
-    private val replaceHighlight: Pair<IntRange, Color>?
-) : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        if (matchRanges.isEmpty() && replaceHighlight == null) {
-            return TransformedText(text, OffsetMapping.Identity)
-        }
-
-        val builder = buildAnnotatedString {
-            append(text)
-            // Highlight all search matches
-            matchRanges.forEachIndexed { index, range ->
-                val safeStart = range.first.coerceIn(0, text.length)
-                val safeEnd = (range.last + 1).coerceIn(0, text.length)
-                if (safeStart < safeEnd) {
-                    val bgColor = if (index == currentMatchIndex) currentMatchColor else searchHighlightColor
-                    addStyle(SpanStyle(background = bgColor), safeStart, safeEnd)
-                }
-            }
-            // Apply replace highlight (red pending / green done)
-            replaceHighlight?.let { (range, color) ->
-                val safeStart = range.first.coerceIn(0, text.length)
-                val safeEnd = (range.last + 1).coerceIn(0, text.length)
-                if (safeStart < safeEnd) {
-                    addStyle(SpanStyle(background = color), safeStart, safeEnd)
-                }
-            }
-        }
-
-        return TransformedText(builder, OffsetMapping.Identity)
     }
 }

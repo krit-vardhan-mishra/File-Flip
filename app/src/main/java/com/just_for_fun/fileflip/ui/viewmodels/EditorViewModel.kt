@@ -352,4 +352,199 @@ class EditorViewModel @Inject constructor(
             }
         }
     }
+
+    // --- AGENTIC CHAT STATE & LOGIC ---
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _isAgentLoading = MutableStateFlow(false)
+    val isAgentLoading: StateFlow<Boolean> = _isAgentLoading.asStateFlow()
+
+    private val _agentError = MutableStateFlow<String?>(null)
+    val agentError: StateFlow<String?> = _agentError.asStateFlow()
+
+    fun clearChatHistory() {
+        _chatMessages.value = emptyList()
+        _agentError.value = null
+    }
+
+    fun sendAgentPrompt(prompt: String) {
+        if (prompt.isBlank()) return
+        
+        val userMessage = ChatMessage(
+            id = java.util.UUID.randomUUID().toString(),
+            role = "user",
+            content = prompt
+        )
+        
+        _chatMessages.value = _chatMessages.value + userMessage
+        _isAgentLoading.value = true
+        _agentError.value = null
+        
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val apiKey = SettingsState.apiKey
+                if (apiKey.isBlank()) {
+                    throw Exception("API Key is missing. Please configure it in Settings.")
+                }
+                
+                // Get active context
+                val fileName = _currentFile.value?.name ?: "untitled"
+                val fileContent = _content.value
+                
+                val systemPrompt = "You are FlipFile Agent, a helpful AI assistant integrated into a Markdown and code editor. " +
+                        "You have access to the user's current file context.\n" +
+                        "Active File: $fileName\n" +
+                        "Current Content:\n```\n$fileContent\n```\n" +
+                        "Help the user edit, format, outline, or write code. If you write code, provide it inside standard markdown code blocks."
+                
+                val responseText = makeApiCall(apiKey, systemPrompt, _chatMessages.value)
+                
+                val assistantMessage = ChatMessage(
+                    id = java.util.UUID.randomUUID().toString(),
+                    role = "assistant",
+                    content = responseText
+                )
+                
+                _chatMessages.value = _chatMessages.value + assistantMessage
+            } catch (e: Exception) {
+                Log.e("FileFlip", "Error in sendAgentPrompt", e)
+                _agentError.value = e.message ?: "An unknown error occurred"
+            } finally {
+                _isAgentLoading.value = false
+            }
+        }
+    }
+
+    private fun makeApiCall(apiKey: String, systemPrompt: String, history: List<ChatMessage>): String {
+        val isGemini = apiKey.startsWith("AIza")
+        val isGroq = apiKey.startsWith("gsk_")
+        
+        val urlString = when {
+            isGemini -> "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+            isGroq -> "https://api.groq.com/openai/v1/chat/completions"
+            else -> "https://openrouter.ai/api/v1/chat/completions"
+        }
+        
+        val connection = java.net.URL(urlString).openConnection() as java.net.HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/json")
+        
+        if (!isGemini) {
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.setRequestProperty("HTTP-Referer", "https://fileflip.app")
+            connection.setRequestProperty("X-Title", "FileFlip")
+        }
+        
+        // Build JSON body
+        val jsonBody = if (isGemini) {
+            // Gemini Format
+            val contentsArray = StringBuilder()
+            contentsArray.append("{\"role\":\"user\",\"parts\":[{\"text\":\"${escapeJson(systemPrompt)}\"}]},")
+            contentsArray.append("{\"role\":\"model\",\"parts\":[{\"text\":\"Understood. I am ready to help.\"}]},")
+            
+            history.forEachIndexed { index, msg ->
+                val role = if (msg.role == "user") "user" else "model"
+                contentsArray.append("{\"role\":\"$role\",\"parts\":[{\"text\":\"${escapeJson(msg.content)}\"}]}")
+                if (index < history.size - 1) contentsArray.append(",")
+            }
+            "{\"contents\":[$contentsArray]}"
+        } else {
+            // OpenAI Format (OpenRouter / Groq)
+            val modelName = if (isGroq) "llama3-8b-8192" else "google/gemini-2.5-flash"
+            val messagesArray = StringBuilder()
+            messagesArray.append("{\"role\":\"system\",\"content\":\"${escapeJson(systemPrompt)}\"},")
+            history.forEachIndexed { index, msg ->
+                messagesArray.append("{\"role\":\"${msg.role}\",\"content\":\"${escapeJson(msg.content)}\"}")
+                if (index < history.size - 1) messagesArray.append(",")
+            }
+            "{\"model\":\"$modelName\",\"messages\":[$messagesArray]}"
+        }
+        
+        connection.outputStream.use { os ->
+            os.write(jsonBody.toByteArray(Charsets.UTF_8))
+        }
+        
+        val responseCode = connection.responseCode
+        if (responseCode == java.net.HttpURLConnection.HTTP_OK) {
+            val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+            return parseApiResponse(responseText, isGemini)
+        } else {
+            val errorText = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
+            Log.e("FileFlip", "API request failed: Code $responseCode, Error: $errorText")
+            val parsedError = try {
+                val json = org.json.JSONObject(errorText)
+                if (json.has("error")) {
+                    val errorObj = json.get("error")
+                    if (errorObj is org.json.JSONObject && errorObj.has("message")) {
+                        errorObj.getString("message")
+                    } else if (errorObj is String) {
+                        errorObj
+                    } else {
+                        json.toString()
+                    }
+                } else {
+                    errorText
+                }
+            } catch (e: Exception) {
+                errorText
+            }
+            throw Exception(parsedError)
+        }
+    }
+
+    private fun parseApiResponse(response: String, isGemini: Boolean): String {
+        return try {
+            val json = org.json.JSONObject(response)
+            if (isGemini) {
+                val candidates = json.getJSONArray("candidates")
+                val firstCandidate = candidates.getJSONObject(0)
+                val content = firstCandidate.getJSONObject("content")
+                val parts = content.getJSONArray("parts")
+                parts.getJSONObject(0).getString("text")
+            } else {
+                val choices = json.getJSONArray("choices")
+                val firstChoice = choices.getJSONObject(0)
+                val message = firstChoice.getJSONObject("message")
+                message.getString("content")
+            }
+        } catch (e: Exception) {
+            Log.e("FileFlip", "Error parsing response: $response", e)
+            throw Exception("Failed to parse AI response: ${e.message}")
+        }
+    }
+
+    private fun escapeJson(text: String): String {
+        return text.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }
+
+    fun applyCodePatchToEditor(codeBlock: String, selectionRange: androidx.compose.ui.text.TextRange? = null) {
+        val currentText = _content.value
+        val newText = if (selectionRange != null && selectionRange.start >= 0 && selectionRange.end <= currentText.length) {
+            val before = currentText.take(selectionRange.start)
+            val after = currentText.substring(selectionRange.end)
+            before + codeBlock + after
+        } else {
+            if (currentText.endsWith("\n") || currentText.isEmpty()) {
+                currentText + codeBlock
+            } else {
+                currentText + "\n" + codeBlock
+            }
+        }
+        updateContent(newText)
+    }
 }
+
+data class ChatMessage(
+    val id: String,
+    val role: String, // "user" or "assistant"
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis()
+)

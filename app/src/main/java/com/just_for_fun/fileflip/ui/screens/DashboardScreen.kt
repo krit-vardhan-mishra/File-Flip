@@ -97,7 +97,14 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import com.just_for_fun.fileflip.ui.util.FileIconHelper
 import android.util.Log
+import com.just_for_fun.fileflip.ui.components.common.RenameFileDialog
+import com.just_for_fun.fileflip.ui.components.dashboard.FileListItem
+import com.just_for_fun.fileflip.ui.components.dashboard.FloatingBottomBar
+import com.just_for_fun.fileflip.ui.components.dashboard.HeroCreateSection
+import com.just_for_fun.fileflip.ui.components.dashboard.QuickActionsGrid
 import com.just_for_fun.fileflip.ui.theme.LocalAppColors
+import com.just_for_fun.fileflip.ui.util.copyFileToAppStorage
+import com.just_for_fun.fileflip.ui.util.getFileNameFromUri
 
 // Colors - theme-aware
 private val PrimaryBlue: Color @Composable get() = LocalAppColors.current.primaryBlue
@@ -120,11 +127,11 @@ fun DashboardScreen(
     var showApiKeyPromptDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        com.just_for_fun.fileflip.ui.screens.SettingsState.loadSettings(context)
-        if (!com.just_for_fun.fileflip.ui.screens.SettingsState.isApiKeyConfigured && 
-            !com.just_for_fun.fileflip.ui.screens.SettingsState.hasShownApiKeyPromptThisSession) {
+        SettingsState.loadSettings(context)
+        if (!SettingsState.isApiKeyConfigured &&
+            !SettingsState.hasShownApiKeyPromptThisSession) {
             showApiKeyPromptDialog = true
-            com.just_for_fun.fileflip.ui.screens.SettingsState.hasShownApiKeyPromptThisSession = true
+            SettingsState.hasShownApiKeyPromptThisSession = true
         }
     }
     var showFileTypeSelectionBottomSheet by remember { mutableStateOf(false) }
@@ -268,6 +275,7 @@ fun DashboardScreen(
                         }
                     }
                 }
+
                 Spacer(Modifier.height(24.dp))
                 HorizontalDivider(color = TextGray.copy(alpha = 0.1f))
                 Spacer(Modifier.height(12.dp))
@@ -1224,110 +1232,8 @@ fun TopNavigationBar(onMenuClick: () -> Unit) {
     }
 }
 
-@Composable
-fun HeroCreateSection(onCreateClick: () -> Unit) {
-    val context = LocalContext.current
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(160.dp)
-                .clickable { onCreateClick() }
-        ) {
-            // Glow Effect
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(4.dp) // Slight inset for glow to bleed out
-                    .blur(20.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(PrimaryBlue.copy(alpha = 0.4f), Color(0xFF2563EB).copy(alpha = 0.4f))
-                        ),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-            )
 
-            // Card Content
-            Card(
-                modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.1f))
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .shadow(10.dp, CircleShape, spotColor = PrimaryBlue)
-                            .background(PrimaryBlue, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            tint = TextWhite,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Create New File",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = TextWhite
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Edit and convert to PDF",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextGray
-                    )
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        TextButton(
-            onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://fileflip.vercel.app")) // Replace with actual URL when deployed
-                context.startActivity(intent)
-            },
-            modifier = Modifier.align(Alignment.End)
-        ) {
-            Text(
-                text = "Visit Website",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = PrimaryBlue
-            )
-        }
-    }
-}
 
-@Composable
-fun QuickActionsGrid(onImportClick: () -> Unit, onTemplatesClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        QuickActionButton(
-            icon = Icons.Rounded.CloudUpload,
-            label = "Import",
-            modifier = Modifier.weight(1f),
-            onClick = onImportClick
-        )
-        QuickActionButton(
-            icon = Icons.Rounded.Description,
-            label = "Templates",
-            modifier = Modifier.weight(1f),
-            onClick = onTemplatesClick
-        )
-    }
-}
 
 @Composable
 fun QuickActionButton(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -1362,169 +1268,12 @@ fun QuickActionButton(icon: ImageVector, label: String, modifier: Modifier = Mod
     }
 }
 
-@Composable
-fun FileListItem(
-    name: String,
-    date: String,
-    size: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.AutoMirrored.Rounded.Article,
-    iconColor: Color = FileIconHelper.IconOrange,
-    onClick: () -> Unit,
-    onMoreClick: () -> Unit
-) {
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.05f))
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // File Icon Box
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(iconColor.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
 
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = TextWhite,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "$date • $size", // Formatted date string
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = TextGray
-                )
-            }
-
-            IconButton(onClick = onMoreClick) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "More",
-                    tint = TextGray
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun FloatingBottomBar(modifier: Modifier = Modifier, navController: NavController) {
-    // Glassmorphic-ish Bottom Bar
-    Box(
-        modifier = modifier
-            .padding(horizontal = 40.dp) // Indent to make it float
-            .height(64.dp)
-            .fillMaxWidth()
-            .shadow(16.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.5f))
-            .background(SurfaceDark.copy(alpha = 0.95f), CircleShape) // Slightly opaque
-            .border(1.dp, Color.White.copy(alpha = 0.05f), CircleShape)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BottomBarItem(
-                icon = Icons.Rounded.GridView,
-                label = "Home",
-                isSelected = true,
-                onClick = { /* Already on home */ }
-            )
-            BottomBarItem(
-                icon = Icons.Rounded.FolderOpen,
-                label = "Library",
-                isSelected = false,
-                onClick = { navController.navigate("file_explorer") }
-            )
-            BottomBarItem(
-                icon = Icons.AutoMirrored.Rounded.Article,
-                label = "Editor",
-                isSelected = false,
-                onClick = { navController.navigate("editor/empty") }
-            )
-            // BottomBarItem(
-            //     icon = Icons.Rounded.AutoAwesome,
-            //     label = "Pro",
-            //     isSelected = false,
-            //     onClick = { navController.navigate("pro") }
-            // )
-            BottomBarItem(
-                icon = Icons.Rounded.Settings,
-                label = "Settings",
-                isSelected = false,
-                onClick = { navController.navigate("settings") }
-            )
-        }
-    }
-}
 
 // Helper functions for file import
 // Helper functions for file import
-fun getFileNameFromUri(context: android.content.Context, uri: Uri): String? {
-    var result: String? = null
-    if (uri.scheme == "content") {
-        val cursor = context.contentResolver.query(uri, null, null, null, null)
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (nameIndex != -1) {
-                    result = it.getString(nameIndex)
-                }
-            }
-        }
-    }
-    if (result == null) {
-        result = uri.path
-        val cut = result?.lastIndexOf('/')
-        if (cut != null && cut != -1) {
-            result = result?.substring(cut + 1)
-        }
-    }
-    return result ?: "imported_file_${System.currentTimeMillis()}"
-}
 
-fun copyFileToAppStorage(context: android.content.Context, uri: Uri, fileName: String): Boolean {
-    return try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return false
-        val outputDir = context.filesDir
-        // Create a unique filename if it already exists to avoid overwriting (optional, but good practice)
-        // For now, we'll overwrite as per original logic implies, or maybe we should handle duplicates? 
-        // Let's stick to simple overwrite for now to match expected behavior or just basic copy.
-        val outputFile = java.io.File(outputDir, fileName)
-        
-        inputStream.use { input ->
-            outputFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-        true
-    } catch (e: Exception) {
-        e.printStackTrace()
-        false
-    }
-}
 
 @Composable
 fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit) {
@@ -1548,49 +1297,4 @@ fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick
             )
         }
     }
-}
-@Composable
-fun RenameFileDialog(
-    file: MarkdownFile,
-    onDismiss: () -> Unit,
-    onRename: (String) -> Unit
-) {
-    var newName by remember { mutableStateOf(file.name) }
-    
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename File", color = TextWhite) },
-        text = {
-            Column {
-                Text("Enter new name:", color = TextGray)
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        cursorColor = PrimaryBlue,
-                        focusedBorderColor = PrimaryBlue,
-                        unfocusedBorderColor = TextGray
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { onRename(newName) }) {
-                Text("Rename", color = PrimaryBlue)
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextGray)
-            }
-        },
-        containerColor = SurfaceDark,
-        textContentColor = TextWhite,
-        titleContentColor = TextWhite
-    )
 }
