@@ -3,12 +3,33 @@ package com.just_for_fun.fileflip.ui.util
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.documentfile.provider.DocumentFile
 import com.just_for_fun.fileflip.domain.model.ExplorerItem
 import java.io.File
 
-fun getFileNameFromUri(context: android.content.Context, uri: Uri): String? {
+fun getFileNameFromUri(context: Context, uri: Uri): String? {
     var result: String? = null
     if (uri.scheme == "content") {
         val cursor = context.contentResolver.query(uri, null, null, null, null)
@@ -233,8 +254,96 @@ fun listDocumentFilesFromTree(context: Context, treeUri: Uri, parentDocId: Strin
     return list.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
 }
 
+
+// --- Custom Markdown Parser Composables ---
+@Composable
+fun FormattedMarkdownText(text: String, textColor: Color) {
+    // Split the text by triple backticks for code blocks
+    val parts = text.split("```")
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        parts.forEachIndexed { index, part ->
+            if (index % 2 == 1) {
+                // Render as a Code Block
+                val lines = part.lines()
+                val codeContent = if (lines.size > 1 && lines.first().trim().isNotEmpty()) {
+                    lines.drop(1).joinToString("\n")
+                } else {
+                    part
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
+                        .padding(8.dp)
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = codeContent.trim(),
+                        color = Color(0xFFD4D4D4),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+            } else {
+                // Render as normal text with inline markdown parsing
+                if (part.isNotBlank()) {
+                    Text(
+                        text = parseBasicMarkdown(part),
+                        color = textColor,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+
 // Helper function to get file icon and color based on extension
 fun getFileIconAndColorEditorScreen(extension: String): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
     val cleanExtension = extension.removePrefix(".")
     return FileIconHelper.getIconAndColor(cleanExtension)
+}
+
+fun parseBasicMarkdown(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        var currentIndex = 0
+        // Regex looks for **bold**, *italic*, and `inline code`
+        val pattern = Regex("(\\*\\*[\\s\\S]*?\\*\\*|\\*[\\s\\S]*?\\*|`[\\s\\S]*?`)")
+        val matches = pattern.findAll(text)
+
+        for (match in matches) {
+            // Append standard text that appeared before the matched styled text
+            append(text.substring(currentIndex, match.range.first))
+
+            val matchText = match.value
+            when {
+                matchText.startsWith("**") && matchText.endsWith("**") -> {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(matchText.substring(2, matchText.length - 2))
+                    }
+                }
+                matchText.startsWith("*") && matchText.endsWith("*") -> {
+                    withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                        append(matchText.substring(1, matchText.length - 1))
+                    }
+                }
+                matchText.startsWith("`") && matchText.endsWith("`") -> {
+                    withStyle(
+                        SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            background = Color.DarkGray.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        append(matchText.substring(1, matchText.length - 1))
+                    }
+                }
+            }
+            currentIndex = match.range.last + 1
+        }
+        // Append any remaining text after the last match
+        append(text.substring(currentIndex))
+    }
 }

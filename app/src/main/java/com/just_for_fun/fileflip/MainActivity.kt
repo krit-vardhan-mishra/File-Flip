@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
         // Sync with global SettingsState
         com.just_for_fun.fileflip.ui.screens.SettingsState.apiKey = apiKey
         com.just_for_fun.fileflip.ui.screens.SettingsState.isApiKeyConfigured = isConfigured
+        com.just_for_fun.fileflip.ui.screens.SettingsState.aiProvider = sharedPreferences.getString("ai_provider", "") ?: ""
+        com.just_for_fun.fileflip.ui.screens.SettingsState.aiModelName = sharedPreferences.getString("ai_model_name", "") ?: ""
     }
 
     override fun onNewIntent(intent: Intent) {

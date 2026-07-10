@@ -363,9 +363,48 @@ class EditorViewModel @Inject constructor(
     private val _agentError = MutableStateFlow<String?>(null)
     val agentError: StateFlow<String?> = _agentError.asStateFlow()
 
+    // --- Diff & Selection Context State ---
+    private val _pendingChanges = MutableStateFlow<PendingChanges?>(null)
+    val pendingChanges: StateFlow<PendingChanges?> = _pendingChanges.asStateFlow()
+
+    var selectedTextContext: String? = null
+        private set
+    var activeSelectionRange: androidx.compose.ui.text.TextRange? = null
+        private set
+
+    fun sendSelectedTextToAgent(selectedText: String, range: androidx.compose.ui.text.TextRange) {
+        selectedTextContext = selectedText
+        activeSelectionRange = range
+        
+        // Add a helper message in chat
+        val userMessage = ChatMessage(
+            id = java.util.UUID.randomUUID().toString(),
+            role = "user",
+            content = "Selected text context:\n```\n$selectedText\n```"
+        )
+        _chatMessages.value = _chatMessages.value + userMessage
+    }
+
+    fun clearSelectedTextContext() {
+        selectedTextContext = null
+        activeSelectionRange = null
+    }
+
+    fun acceptPendingChanges() {
+        val pending = _pendingChanges.value ?: return
+        updateContent(pending.proposedContent)
+        _pendingChanges.value = null
+        clearSelectedTextContext()
+    }
+
+    fun rejectPendingChanges() {
+        _pendingChanges.value = null
+    }
+
     fun clearChatHistory() {
         _chatMessages.value = emptyList()
         _agentError.value = null
+        clearSelectedTextContext()
     }
 
     fun sendAgentPrompt(prompt: String) {
@@ -390,13 +429,24 @@ class EditorViewModel @Inject constructor(
                 
                 // Get active context
                 val fileName = _currentFile.value?.name ?: "untitled"
-                val fileContent = _content.value
+                val fileContent = if (_pendingChanges.value != null) {
+                    _pendingChanges.value!!.proposedContent
+                } else {
+                    _content.value
+                }
                 
-                val systemPrompt = "You are FlipFile Agent, a helpful AI assistant integrated into a Markdown and code editor. " +
-                        "You have access to the user's current file context.\n" +
-                        "Active File: $fileName\n" +
-                        "Current Content:\n```\n$fileContent\n```\n" +
-                        "Help the user edit, format, outline, or write code. If you write code, provide it inside standard markdown code blocks."
+                val systemPrompt = if (selectedTextContext != null) {
+                    "You are FlipFile Agent, a helpful AI assistant. The user has selected a specific text context to work on. " +
+                    "You ONLY have access to this selected text. Do not refer to the rest of the file.\n" +
+                    "Selected Text:\n```\n$selectedTextContext\n```\n" +
+                    "Perform edits, answer questions, or write code for this selected text only. If you write code or suggest changes, provide the modified text inside a markdown code block."
+                } else {
+                    "You are FlipFile Agent, a helpful AI assistant integrated into a Markdown and code editor. " +
+                    "You have access to the user's current file context.\n" +
+                    "Active File: $fileName\n" +
+                    "Current Content:\n```\n$fileContent\n```\n" +
+                    "Help the user edit, format, outline, or write code. If you write code, provide it inside standard markdown code blocks."
+                }
                 
                 val responseText = makeApiCall(apiKey, systemPrompt, _chatMessages.value)
                 
@@ -417,16 +467,20 @@ class EditorViewModel @Inject constructor(
     }
 
     private fun makeApiCall(apiKey: String, systemPrompt: String, history: List<ChatMessage>): String {
-        val isGemini = apiKey.startsWith("AIza")
-        val isGroq = apiKey.startsWith("gsk_")
+        val provider = SettingsState.aiProvider
+        val isGemini = provider == "Google Gemini" || apiKey.startsWith("AIza")
+        val isGroq = provider == "Groq" || apiKey.startsWith("gsk_")
+        val modelName = SettingsState.aiModelName.ifEmpty {
+            SettingsState.suggestModelName(apiKey)
+        }
         
-        val urlString = when {
-            isGemini -> "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+        val baseUrl = when {
+            isGemini -> "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey"
             isGroq -> "https://api.groq.com/openai/v1/chat/completions"
             else -> "https://openrouter.ai/api/v1/chat/completions"
         }
         
-        val connection = java.net.URL(urlString).openConnection() as java.net.HttpURLConnection
+        val connection = java.net.URL(baseUrl).openConnection() as java.net.HttpURLConnection
         connection.requestMethod = "POST"
         connection.connectTimeout = 15000
         connection.readTimeout = 15000
@@ -454,7 +508,6 @@ class EditorViewModel @Inject constructor(
             "{\"contents\":[$contentsArray]}"
         } else {
             // OpenAI Format (OpenRouter / Groq)
-            val modelName = if (isGroq) "llama3-8b-8192" else "google/gemini-2.5-flash"
             val messagesArray = StringBuilder()
             messagesArray.append("{\"role\":\"system\",\"content\":\"${escapeJson(systemPrompt)}\"},")
             history.forEachIndexed { index, msg ->
@@ -527,9 +580,10 @@ class EditorViewModel @Inject constructor(
 
     fun applyCodePatchToEditor(codeBlock: String, selectionRange: androidx.compose.ui.text.TextRange? = null) {
         val currentText = _content.value
-        val newText = if (selectionRange != null && selectionRange.start >= 0 && selectionRange.end <= currentText.length) {
-            val before = currentText.take(selectionRange.start)
-            val after = currentText.substring(selectionRange.end)
+        val targetRange = selectionRange ?: activeSelectionRange
+        val newText = if (targetRange != null && targetRange.start >= 0 && targetRange.end <= currentText.length) {
+            val before = currentText.take(targetRange.start)
+            val after = currentText.substring(targetRange.end)
             before + codeBlock + after
         } else {
             if (currentText.endsWith("\n") || currentText.isEmpty()) {
@@ -538,13 +592,23 @@ class EditorViewModel @Inject constructor(
                 currentText + "\n" + codeBlock
             }
         }
-        updateContent(newText)
+        _pendingChanges.value = PendingChanges(
+            originalContent = currentText,
+            proposedContent = newText,
+            selectionRange = targetRange
+        )
     }
 }
+
+data class PendingChanges(
+    val originalContent: String,
+    val proposedContent: String,
+    val selectionRange: androidx.compose.ui.text.TextRange?
+)
 
 data class ChatMessage(
     val id: String,
     val role: String, // "user" or "assistant"
     val content: String,
     val timestamp: Long = System.currentTimeMillis()
-)
+)

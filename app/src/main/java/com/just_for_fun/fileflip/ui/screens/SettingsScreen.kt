@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.EditNote
@@ -72,6 +73,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.LaunchedEffect
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.just_for_fun.fileflip.ui.theme.ThemeManager
@@ -89,18 +92,52 @@ object SettingsState {
     var isApiKeyConfigured by mutableStateOf(false)
     var hasShownApiKeyPromptThisSession = false
 
+    // AI Provider & Model config
+    var aiProvider by mutableStateOf("")
+    var aiModelName by mutableStateOf("")
+
+    fun detectProvider(key: String): String = when {
+        key.startsWith("AIza") -> "Google Gemini"
+        key.startsWith("gsk_") -> "Groq"
+        key.isNotEmpty() -> "OpenRouter"
+        else -> ""
+    }
+
+    fun suggestModelName(key: String): String = when {
+        key.startsWith("AIza") -> "gemini-1.5-flash"
+        key.startsWith("gsk_") -> "llama3-8b-8192"
+        key.isNotEmpty() -> "google/gemini-2.5-flash"
+        else -> ""
+    }
+
     fun loadSettings(context: Context) {
         val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
         apiKey = prefs.getString("api_key", "") ?: ""
         isApiKeyConfigured = apiKey.isNotEmpty()
+        aiProvider = prefs.getString("ai_provider", "") ?: ""
+        aiModelName = prefs.getString("ai_model_name", "") ?: ""
+        if (aiProvider.isEmpty()) aiProvider = detectProvider(apiKey)
+        if (aiModelName.isEmpty()) aiModelName = suggestModelName(apiKey)
     }
 
     fun saveApiKey(context: Context, key: String) {
         apiKey = key
         isApiKeyConfigured = key.isNotEmpty()
+        aiProvider = detectProvider(key)
+        if (aiModelName.isEmpty()) aiModelName = suggestModelName(key)
         context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             .edit()
             .putString("api_key", key)
+            .putString("ai_provider", aiProvider)
+            .putString("ai_model_name", aiModelName)
+            .apply()
+    }
+
+    fun saveAiModelName(context: Context, modelName: String) {
+        aiModelName = modelName
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("ai_model_name", modelName)
             .apply()
     }
 }
@@ -129,9 +166,14 @@ fun SettingsScreen(navController: NavController) {
     var selectedTheme by remember { mutableIntStateOf(ThemeManager.currentThemeIndex) }
     var fontExpanded by remember { mutableStateOf(false) }
     var apiKeyInput by remember { mutableStateOf(SettingsState.apiKey) }
+    var modelNameInput by remember { mutableStateOf(SettingsState.aiModelName) }
+    val detectedProvider by remember { derivedStateOf { SettingsState.detectProvider(apiKeyInput) } }
+    var apiKeyConfirmed by remember { mutableStateOf(SettingsState.apiKey.isNotEmpty()) }
 
     LaunchedEffect(SettingsState.apiKey) {
         apiKeyInput = SettingsState.apiKey
+        modelNameInput = SettingsState.aiModelName
+        apiKeyConfirmed = SettingsState.apiKey.isNotEmpty()
     }
 
     val directoryPickerLauncher = rememberLauncherForActivityResult(
@@ -325,9 +367,55 @@ fun SettingsScreen(navController: NavController) {
                             value = apiKeyInput,
                             onValueChange = { newValue ->
                                 apiKeyInput = newValue
-                                SettingsState.saveApiKey(context, newValue)
+                                apiKeyConfirmed = false
                             },
                             placeholder = { Text("Enter API Key (e.g., OpenRouter / Groq / Gemini)", color = TextGray) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = PrimaryBlue,
+                                unfocusedBorderColor = BorderColor,
+                                cursorColor = PrimaryBlue
+                            ),
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        if (apiKeyInput.isNotBlank()) {
+                                            SettingsState.saveApiKey(context, apiKeyInput)
+                                            apiKeyConfirmed = true
+                                            modelNameInput = SettingsState.aiModelName
+                                            Toast.makeText(context, "API key saved", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Please enter an API key first", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (apiKeyConfirmed) Icons.Rounded.Check else Icons.Rounded.Check,
+                                        contentDescription = "Confirm API Key",
+                                        tint = if (apiKeyConfirmed) LocalAppColors.current.iconEmerald else TextGray,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "AI Provider: ${detectedProvider.ifEmpty { "Not detected" }}",
+                            color = if (detectedProvider.isNotEmpty()) PrimaryBlue else TextGray,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = modelNameInput,
+                            onValueChange = { newValue ->
+                                modelNameInput = newValue
+                                SettingsState.saveAiModelName(context, newValue)
+                            },
+                            placeholder = { Text("Model name (e.g., gemini-1.5-flash)", color = TextGray) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(

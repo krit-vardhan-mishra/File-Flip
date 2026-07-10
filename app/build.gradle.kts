@@ -59,6 +59,7 @@ configurations.all {
 
 dependencies {
     implementation(libs.androidx.compose.ui.text)
+    implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.lifecycle.runtime.ktx)

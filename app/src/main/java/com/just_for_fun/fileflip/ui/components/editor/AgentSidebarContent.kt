@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,11 +25,14 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,6 +61,7 @@ import com.just_for_fun.fileflip.ui.screens.SettingsState
 import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 import com.just_for_fun.fileflip.ui.util.BackgroundDark
 import com.just_for_fun.fileflip.ui.util.DividerColor
+import com.just_for_fun.fileflip.ui.util.FormattedMarkdownText
 import com.just_for_fun.fileflip.ui.util.PrimaryBlue
 import com.just_for_fun.fileflip.ui.util.SurfaceDark
 import com.just_for_fun.fileflip.ui.util.TextGray
@@ -78,14 +84,22 @@ fun AgentSidebarContent(
     val agentError by viewModel.agentError.collectAsState()
 
     var promptInput by remember { mutableStateOf("") }
+    var showHistoryOverlay by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val listState = rememberLazyListState()
 
     // Auto-scroll to bottom of chat when new messages arrive
     LaunchedEffect(chatMessages.size) {
         if (chatMessages.isNotEmpty()) {
             listState.animateScrollToItem(chatMessages.size - 1)
         }
+    }
+
+    if (showHistoryOverlay) {
+        ChatHistoryOverlay(
+            onClose = { showHistoryOverlay = false }
+        )
     }
 
     Column(
@@ -113,15 +127,10 @@ fun AgentSidebarContent(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                val apiKey = SettingsState.apiKey
-                val modelName = when {
-                    apiKey.startsWith("AIza") -> "Gemini 1.5 Flash"
-                    apiKey.startsWith("gsk_") -> "Groq (Llama 3)"
-                    apiKey.isNotEmpty() -> "OpenRouter (Gemini 2.5)"
-                    else -> "No provider configured"
-                }
+                val provider = SettingsState.aiProvider
+                val modelName = SettingsState.aiModelName
                 Text(
-                    text = modelName,
+                    text = if (provider.isNotEmpty()) "$provider • $modelName" else "No provider configured",
                     color = TextGray,
                     fontSize = 11.sp
                 )
@@ -138,6 +147,15 @@ fun AgentSidebarContent(
                 }
             }
 
+            IconButton(onClick = { showHistoryOverlay = true }) {
+                Icon(
+                    imageVector = Icons.Rounded.History,
+                    contentDescription = "History",
+                    tint = TextGray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
             IconButton(onClick = onClose) {
                 Icon(
                     imageVector = Icons.Rounded.Close,
@@ -148,7 +166,7 @@ fun AgentSidebarContent(
             }
         }
 
-        androidx.compose.material3.HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 12.dp))
+        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 12.dp))
 
         // --- Sidebar Body ---
         Box(
@@ -286,7 +304,7 @@ fun AgentSidebarContent(
                 }
             } else {
                 // Conversation message list
-                androidx.compose.foundation.lazy.LazyColumn(
+                LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -345,11 +363,10 @@ fun AgentSidebarContent(
                                         )
                                         .padding(12.dp)
                                 ) {
-                                    Text(
+                                    // Parse Markdown properly
+                                    FormattedMarkdownText(
                                         text = message.content,
-                                        color = TextWhite,
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp
+                                        textColor = TextWhite
                                     )
 
                                     // Parse and render action buttons for assistant messages
@@ -424,7 +441,7 @@ fun AgentSidebarContent(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                                androidx.compose.material3.CircularProgressIndicator(
+                                CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     color = PrimaryBlue,
                                     strokeWidth = 2.dp
@@ -440,7 +457,54 @@ fun AgentSidebarContent(
 
         // --- Sidebar Footer (Input Panel) ---
         if (SettingsState.apiKey.isNotEmpty() && agentError == null) {
-            androidx.compose.material3.HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 12.dp))
+            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 12.dp))
+            
+            // Selection Context Tag
+            val selectedContext = viewModel.selectedTextContext
+            if (selectedContext != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(PrimaryBlue.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                        .border(1.dp, PrimaryBlue.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Code,
+                            contentDescription = null,
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Context: \"${selectedContext.take(30)}...\"",
+                            color = TextWhite,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.clearSelectedTextContext() },
+                        modifier = Modifier.size(18.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Clear Context",
+                            tint = TextGray,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -448,6 +512,7 @@ fun AgentSidebarContent(
                 OutlinedTextField(
                     value = promptInput,
                     onValueChange = { promptInput = it },
+                    enabled = !isAgentLoading,
                     placeholder = { Text("Ask FlipFile Agent...", color = TextGray, fontSize = 13.sp) },
                     singleLine = false,
                     maxLines = 4,
@@ -458,18 +523,24 @@ fun AgentSidebarContent(
                         unfocusedTextColor = TextWhite,
                         focusedBorderColor = PrimaryBlue,
                         unfocusedBorderColor = LocalAppColors.current.border,
-                        cursorColor = PrimaryBlue
+                        cursorColor = PrimaryBlue,
+                        disabledTextColor = TextWhite.copy(alpha = 0.5f),
+                        disabledBorderColor = LocalAppColors.current.border.copy(alpha = 0.5f),
+                        disabledPlaceholderColor = TextGray.copy(alpha = 0.5f)
                     ),
                     trailingIcon = {
-                        IconButton(onClick = {
-                            launchSpeechToText { spokenText ->
-                                promptInput = if (promptInput.isEmpty()) spokenText else "$promptInput $spokenText"
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                launchSpeechToText { spokenText ->
+                                    promptInput = if (promptInput.isEmpty()) spokenText else "$promptInput $spokenText"
+                                }
+                            },
+                            enabled = !isAgentLoading
+                        ) {
                             Icon(
                                 imageVector = Icons.Rounded.Mic,
                                 contentDescription = "Voice Input",
-                                tint = TextGray,
+                                tint = if (isAgentLoading) TextGray.copy(alpha = 0.5f) else TextGray,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -485,7 +556,10 @@ fun AgentSidebarContent(
                     },
                     modifier = Modifier
                         .size(48.dp)
-                        .background(PrimaryBlue, RoundedCornerShape(12.dp)),
+                        .background(
+                            if (isAgentLoading) PrimaryBlue.copy(alpha = 0.5f) else PrimaryBlue, 
+                            RoundedCornerShape(12.dp)
+                        ),
                     enabled = !isAgentLoading
                 ) {
                     Icon(

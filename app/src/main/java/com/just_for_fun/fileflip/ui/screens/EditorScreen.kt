@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -72,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -119,7 +122,11 @@ fun EditorScreen(
 
     val currentFile by viewModel.currentFile.collectAsState()
     val content by viewModel.content.collectAsState()
+    val pendingChanges by viewModel.pendingChanges.collectAsState()
     var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
+
+    // Track text layout for positioning the "Send to Agent" chip near the selection
+    var textLayoutResult by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
 
     // Explorer tree states
     var explorerItems by remember { mutableStateOf<List<ExplorerItem>>(emptyList()) }
@@ -226,10 +233,11 @@ fun EditorScreen(
     // Update textFieldValue when content changes from viewModel
     LaunchedEffect(content) {
         if (textFieldValue.text != content) {
-            textFieldValue = TextFieldValue(
-                text = content,
-                selection = textFieldValue.selection
+            val clampedSelection = TextRange(
+                textFieldValue.selection.start.coerceIn(0, content.length),
+                textFieldValue.selection.end.coerceIn(0, content.length)
             )
+            textFieldValue = TextFieldValue(text = content, selection = clampedSelection)
         }
     }
 
@@ -281,10 +289,11 @@ fun EditorScreen(
 
     val hasSelection = textFieldValue.selection.start != textFieldValue.selection.end
     val selectedText = if (hasSelection) {
-        textFieldValue.text.substring(
-            textFieldValue.selection.start,
-            textFieldValue.selection.end
-        )
+        val start = minOf(textFieldValue.selection.start, textFieldValue.selection.end)
+            .coerceIn(0, textFieldValue.text.length)
+        val end = maxOf(textFieldValue.selection.start, textFieldValue.selection.end)
+            .coerceIn(0, textFieldValue.text.length)
+        textFieldValue.text.substring(start, end)
     } else {
         ""
     }
@@ -374,7 +383,9 @@ fun EditorScreen(
 
     val rightDrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Rtl
+    ) {
         ModalNavigationDrawer(
             drawerState = rightDrawerState,
             drawerContent = {
@@ -391,7 +402,7 @@ fun EditorScreen(
                             speakingMessageId = speakingMessageId,
                             launchSpeechToText = launchSpeechToText,
                             onTextPatchSelected = { code ->
-                                viewModel.applyCodePatchToEditor(code, textFieldValue.selection)
+                                viewModel.applyCodePatchToEditor(code) // uses activeSelectionRange internally
                             }
                         )
                     }
@@ -667,6 +678,68 @@ fun EditorScreen(
                                         )
                                     )
 
+                                    // Quick Tool Bar - Context aware based on file type and selection
+                                    if (pendingChanges == null) {
+                                        Surface(
+                                            color = BackgroundDark,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceAround
+                                            ) {
+                                                // Show tools based on file type and selection state
+                                                val toolbarTools = if (hasSelection) {
+                                                    fileType.getFormattingTools()
+                                                } else {
+                                                    fileType.getToolbarTools(
+                                                        onShowValidation = { title, message, isError ->
+                                                            validationTitle = title
+                                                            validationMessage = message
+                                                            validationIsError = isError
+                                                            showValidationDialog = true
+                                                        },
+                                                        onShowWordCount = { showWordCountDialog = true },
+                                                        onShowFindReplace = {
+                                                            searchReplaceInitialMode = "replace"
+                                                            showSearchReplaceSheet = true
+                                                        }
+                                                    )
+                                                }
+
+                                                toolbarTools.forEach { tool ->
+                                                    EditorToolIcon(
+                                                        icon = tool.icon,
+                                                        contentDescription = tool.description,
+                                                        isSelected = hasSelection,
+                                                        onClick = {
+                                                            if (tool.icon == Icons.Outlined.AttachFile) {
+                                                                showAttachBottomSheet = true
+                                                            } else {
+                                                                tool.action(
+                                                                    viewModel,
+                                                                    textFieldValue.text,
+                                                                    selectedText,
+                                                                    if (hasSelection) textFieldValue.selection else null
+                                                                )
+                                                                // Clear selection after formatting
+                                                                if (hasSelection) {
+                                                                    textFieldValue = TextFieldValue(
+                                                                        text = viewModel.content.value,
+                                                                        selection = TextRange(textFieldValue.selection.end)
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     // Tab Row - Dynamic tabs for open files
                                     if (openFiles.isNotEmpty()) {
                                         LazyRow(
@@ -713,8 +786,8 @@ fun EditorScreen(
                                 }
                             },
                             floatingActionButton = {
-                                if (currentFile != null) {
-                                     FloatingActionButton(
+                                if (currentFile != null && pendingChanges == null) {
+                                    FloatingActionButton(
                                          onClick = {
                                              viewModel.saveFile()
                                              val encodedPath = java.net.URLEncoder.encode(currentFile!!.path, "UTF-8")
@@ -722,151 +795,268 @@ fun EditorScreen(
                                          },
                                          containerColor = PrimaryBlue,
                                          contentColor = Color.White,
-                                         shape = RoundedCornerShape(16.dp),
-                                         modifier = Modifier.padding(bottom = 60.dp) // Space for bottom toolbar
+                                         shape = RoundedCornerShape(16.dp)
                                      ) {
                                          Icon(Icons.Default.PlayArrow, contentDescription = "Preview", modifier = Modifier.size(32.dp))
                                      }
                                 }
                             },
-                            bottomBar = {
-                                // Quick Tool Bar - Context aware based on file type and selection
-                                Surface(
-                                    color = BackgroundDark,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp, horizontal = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceAround
+                            bottomBar = {}
+                        ) { paddingValues ->
+                            Column(
+                                modifier = Modifier
+                                    .padding(paddingValues)
+                                    .fillMaxSize()
+                            ) {
+                                if (pendingChanges != null) {
+                                    // --- Diff Mode Top Banner ---
+                                    Surface(
+                                        color = SurfaceDark,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
                                     ) {
-                                        // Show tools based on file type and selection state
-                                        val toolbarTools = if (hasSelection) {
-                                            fileType.getFormattingTools()
-                                        } else {
-                                            fileType.getToolbarTools(
-                                                onShowValidation = { title, message, isError ->
-                                                    validationTitle = title
-                                                    validationMessage = message
-                                                    validationIsError = isError
-                                                    showValidationDialog = true
-                                                },
-                                                onShowWordCount = { showWordCountDialog = true },
-                                                onShowFindReplace = {
-                                                    searchReplaceInitialMode = "replace"
-                                                    showSearchReplaceSheet = true
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = "Proposed Changes",
+                                                    color = TextWhite,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = "Review agent edits before accepting",
+                                                    color = TextGray,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Button(
+                                                    onClick = { viewModel.rejectPendingChanges() },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0x33EF4444),
+                                                        contentColor = Color(0xFFEF4444)
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.height(36.dp)
+                                                ) {
+                                                    Text("Reject", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                                 }
-                                            )
+                                                Button(
+                                                    onClick = { viewModel.acceptPendingChanges() },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0x3310B981),
+                                                        contentColor = Color(0xFF10B981)
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.height(36.dp)
+                                                ) {
+                                                    Text("Accept", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                }
+                                            }
                                         }
+                                    }
+                                    
+                                    // --- Diff View Content ---
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth()
+                                            .background(BackgroundDark)
+                                    ) {
+                                        val original = pendingChanges!!.originalContent
+                                        val proposed = pendingChanges!!.proposedContent
+                                        val diffItems = remember(original, proposed) {
+                                            computeLineDiff(original, proposed)
+                                        }
+                                        
+                                        androidx.compose.foundation.lazy.LazyColumn(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(vertical = 8.dp)
+                                        ) {
+                                            items(diffItems.size) { index ->
+                                                val item = diffItems[index]
+                                                val backgroundColor = when (item.type) {
+                                                    LineDiffType.ADDED -> Color(0x1F3FB950) // Transparent Green
+                                                    LineDiffType.DELETED -> Color(0x1FF85149) // Transparent Red
+                                                    LineDiffType.UNCHANGED -> Color.Transparent
+                                                }
+                                                val textColor = when (item.type) {
+                                                    LineDiffType.ADDED -> Color(0xFF3FB950) // Green
+                                                    LineDiffType.DELETED -> Color(0xFFF85149) // Red
+                                                    LineDiffType.UNCHANGED -> TextWhite
+                                                }
+                                                val prefix = when (item.type) {
+                                                    LineDiffType.ADDED -> "+ "
+                                                    LineDiffType.DELETED -> "- "
+                                                    LineDiffType.UNCHANGED -> "  "
+                                                }
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(backgroundColor)
+                                                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "${index + 1}",
+                                                        color = TextGray.copy(alpha = 0.3f),
+                                                        fontSize = 12.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        modifier = Modifier.width(36.dp)
+                                                    )
+                                                    Text(
+                                                        text = prefix + item.text,
+                                                        color = textColor,
+                                                        fontSize = 14.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        lineHeight = 20.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // --- Normal Editable View ---
+                                    Row(
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        // Line Numbers Gutter
+                                        Column(
+                                            modifier = Modifier
+                                                .width(48.dp)
+                                                .fillMaxHeight()
+                                                .background(GutterColor)
+                                                .verticalScroll(rememberScrollState()),
+                                            horizontalAlignment = Alignment.End
+                                        ) {
+                                            val lineCount = content.count { it == '\n' } + 1
+                                            val displayLines = minOf(lineCount, 100)
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            repeat(displayLines) { index ->
+                                                Text(
+                                                    text = "${index + 1}",
+                                                    color = if ((index + 1) % 5 == 0) PrimaryBlue.copy(alpha = 0.6f) else TextGray.copy(alpha = 0.3f),
+                                                    fontSize = 14.sp,
+                                                    fontFamily = fontFamily,
+                                                    modifier = Modifier.padding(end = 12.dp, bottom = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        
+                                        // Editor Surface
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .background(BackgroundDark)
+                                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                                        ) {
+                                            val appColors = LocalAppColors.current
+                                            val searchHighlightTransformation = remember(searchMatchRanges, currentSearchMatchIndex, replaceHighlight) {
+                                                SearchHighlightTransformation(
+                                                    matchRanges = searchMatchRanges,
+                                                    currentMatchIndex = currentSearchMatchIndex,
+                                                    searchHighlightColor = appColors.searchHighlight,
+                                                    currentMatchColor = appColors.searchHighlight.copy(alpha = 0.6f),
+                                                    replaceHighlight = replaceHighlight
+                                                )
+                                            }
+                                            
+                                            val isAgentLoading by viewModel.isAgentLoading.collectAsState()
 
-                                        toolbarTools.forEach { tool ->
-                                            EditorToolIcon(
-                                                icon = tool.icon,
-                                                contentDescription = tool.description,
-                                                isSelected = hasSelection,
-                                                onClick = {
-                                                    if (tool.icon == Icons.Outlined.AttachFile) {
-                                                        showAttachBottomSheet = true
-                                                    } else {
-                                                        tool.action(
-                                                            viewModel,
-                                                            textFieldValue.text,
-                                                            selectedText,
-                                                            if (hasSelection) textFieldValue.selection else null
-                                                        )
-                                                        // Clear selection after formatting
-                                                        if (hasSelection) {
-                                                            textFieldValue = TextFieldValue(
-                                                                text = viewModel.content.value,
-                                                                selection = TextRange(textFieldValue.selection.end)
-                                                            )
-                                                        }
+                                            BasicTextField(
+                                                value = textFieldValue,
+                                                onValueChange = { newValue ->
+                                                    if (!isAgentLoading) {
+                                                        textFieldValue = newValue
+                                                        viewModel.updateContent(newValue.text)
                                                     }
+                                                },
+                                                readOnly = isAgentLoading,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .verticalScroll(editorScrollState),
+                                                textStyle = TextStyle(
+                                                    color = TextWhite,
+                                                    fontSize = 15.sp,
+                                                    fontFamily = fontFamily,
+                                                    lineHeight = 22.sp
+                                                ),
+                                                visualTransformation = searchHighlightTransformation,
+                                                cursorBrush = SolidColor(PrimaryBlue),
+                                                onTextLayout = { result ->
+                                                    textLayoutResult = result
                                                 }
                                             )
                                         }
                                     }
                                 }
                             }
-                        ) { paddingValues ->
-                            Row(
-                                modifier = Modifier
-                                    .padding(paddingValues)
-                                    .fillMaxSize()
-                            ) {
-                                // Line Numbers Gutter
-                                Column(
-                                    modifier = Modifier
-                                        .width(48.dp)
-                                        .fillMaxHeight()
-                                        .background(GutterColor)
-                                        .verticalScroll(rememberScrollState()), // Note: Syncing scroll is complex, simplified here
-                                    horizontalAlignment = Alignment.End
+                        }
+
+                        // Floating "Send to Agent" chip - positioned below the selection end
+                        if (hasSelection && pendingChanges == null && textLayoutResult != null) {
+                            val selEnd = maxOf(textFieldValue.selection.start, textFieldValue.selection.end)
+                                .coerceIn(0, textFieldValue.text.length)
+                            val cursorRect = textLayoutResult!!.getCursorRect(selEnd)
+                            val density = LocalDensity.current
+
+                            // Convert from text-layout coordinates to screen-relative offsets
+                            // Account for editor padding (16.dp horizontal, 16.dp vertical) + gutter (48.dp)
+                            val chipX = with(density) {
+                                val editorLeft = 48.dp.toPx() + 16.dp.toPx() // gutter + padding
+                                (editorLeft + cursorRect.left).toInt()
+                                    .coerceIn(16.dp.toPx().toInt(), (1080 - 180.dp.toPx()).toInt()) // keep on screen
+                            }
+                            val chipY = with(density) {
+                                val editorTop = 16.dp.toPx() // vertical padding
+                                val scrollOffset = editorScrollState.value.toFloat()
+                                (editorTop + cursorRect.bottom - scrollOffset + 8.dp.toPx()).toInt()
+                            }
+
+                            // Only show if the chip position is within the visible area
+                            val visibleTop = editorScrollState.value
+                            val visibleBottom = with(density) { visibleTop + 600.dp.toPx().toInt() } // approximate
+                            val cursorY = (cursorRect.bottom - editorScrollState.value).toInt()
+
+                            if (cursorY > 0 && cursorY < with(density) { 500.dp.toPx().toInt() }) {
+                                androidx.compose.ui.window.Popup(
+                                    alignment = Alignment.TopStart,
+                                    offset = androidx.compose.ui.unit.IntOffset(chipX, chipY)
                                 ) {
-                                    // Simulate line numbers based on content lines
-                                    val lineCount = content.count { it == '\n' } + 1
-                                    // Limit rendered lines for performance in this basic implementation
-                                    // In a real app, use a proper code editor library
-                                    val displayLines = minOf(lineCount, 100)
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    repeat(displayLines) { index ->
-                                        Text(
-                                            text = "${index + 1}",
-                                            color = if ((index + 1) % 5 == 0) PrimaryBlue.copy(alpha = 0.6f) else TextGray.copy(alpha = 0.3f),
-                                            fontSize = 14.sp,
-                                            fontFamily = fontFamily,
-                                            modifier = Modifier.padding(end = 12.dp, bottom = 2.dp) // Approximate line height match
-                                        )
-                                    }
-                                }
-
-                                // Editor Surface
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .background(BackgroundDark)
-                                        .padding(horizontal = 16.dp, vertical = 16.dp)
-                                ) {
-                                    // Build VisualTransformation for search highlighting
-                                    val appColors = LocalAppColors.current
-                                    val searchHighlightTransformation = remember(searchMatchRanges, currentSearchMatchIndex, replaceHighlight) {
-                                        SearchHighlightTransformation(
-                                            matchRanges = searchMatchRanges,
-                                            currentMatchIndex = currentSearchMatchIndex,
-                                            searchHighlightColor = appColors.searchHighlight,
-                                            currentMatchColor = appColors.searchHighlight.copy(alpha = 0.6f),
-                                            replaceHighlight = replaceHighlight
-                                        )
-                                    }
-
-                                    SelectionContainer {
-                                        TextField(
-                                            value = textFieldValue,
-                                            onValueChange = { newValue ->
-                                                textFieldValue = newValue
-                                                viewModel.updateContent(newValue.text)
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .verticalScroll(editorScrollState),
-                                            textStyle = TextStyle(
-                                                color = TextWhite,
-                                                fontSize = 15.sp,
-                                                fontFamily = fontFamily,
-                                                lineHeight = 22.sp
-                                            ),
-                                            visualTransformation = searchHighlightTransformation,
-                                            colors = androidx.compose.material3.TextFieldDefaults.colors(
-                                                focusedContainerColor = Color.Transparent,
-                                                unfocusedContainerColor = Color.Transparent,
-                                                focusedIndicatorColor = Color.Transparent,
-                                                unfocusedIndicatorColor = Color.Transparent
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = PrimaryBlue,
+                                        contentColor = Color.White,
+                                        shadowElevation = 8.dp,
+                                        modifier = Modifier.clickable {
+                                            viewModel.sendSelectedTextToAgent(selectedText, textFieldValue.selection)
+                                            scope.launch { rightDrawerState.open() }
+                                        }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.AutoAwesome,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
                                             )
-                                        )
+                                            Text(
+                                                text = "Send to Agent",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
