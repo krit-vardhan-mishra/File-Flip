@@ -54,18 +54,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Check for API key dynamically on every app resume (closed, backgrounded, restarted)
-        val sharedPreferences = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val apiKey = sharedPreferences.getString("api_key", "") ?: ""
-        val isConfigured = apiKey.isNotEmpty()
-        
-        Log.d("FileFlip", "[API Key Resumed Check] Configured: $isConfigured")
-        
-        // Sync with global SettingsState
-        com.just_for_fun.fileflip.ui.screens.SettingsState.apiKey = apiKey
-        com.just_for_fun.fileflip.ui.screens.SettingsState.isApiKeyConfigured = isConfigured
-        com.just_for_fun.fileflip.ui.screens.SettingsState.aiProvider = sharedPreferences.getString("ai_provider", "") ?: ""
-        com.just_for_fun.fileflip.ui.screens.SettingsState.aiModelName = sharedPreferences.getString("ai_model_name", "") ?: ""
+        // Sync and load settings dynamically on app resume
+        com.just_for_fun.fileflip.ui.screens.SettingsState.loadSettings(this)
+        Log.d("FileFlip", "[API Key Resumed Check] Configured: ${com.just_for_fun.fileflip.ui.screens.SettingsState.isApiKeyConfigured}")
     }
 
     override fun onNewIntent(intent: Intent) {

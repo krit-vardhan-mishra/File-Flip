@@ -347,3 +347,12 @@ fun parseBasicMarkdown(text: String): AnnotatedString {
         append(text.substring(currentIndex))
     }
 }
+
+fun getFolderNameFromUri(context: Context, uri: Uri): String? {
+    return try {
+        val documentFile = DocumentFile.fromTreeUri(context, uri)
+        documentFile?.name
+    } catch (e: Exception) {
+        null
+    }
+}

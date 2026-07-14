@@ -79,6 +79,20 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.just_for_fun.fileflip.ui.theme.ThemeManager
 import com.just_for_fun.fileflip.ui.theme.LocalAppColors
+import com.just_for_fun.fileflip.data.local.util.ModelDownloader
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import dagger.hilt.EntryPoints
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import dagger.hilt.EntryPoint
+
 
 // Global settings state for demo
 object SettingsState {
@@ -87,14 +101,39 @@ object SettingsState {
     var editorTextSize by mutableFloatStateOf(16f)
     var previewTextSize by mutableFloatStateOf(18f)
 
-    // Global API Key check variables
-    var apiKey by mutableStateOf("")
+    // Provider specific API Keys (decrypted in memory)
+    var geminiApiKey by mutableStateOf("")
+    var groqApiKey by mutableStateOf("")
+    var openRouterApiKey by mutableStateOf("")
+
+    // Provider specific Models
+    var geminiModelName by mutableStateOf("gemini-1.5-flash")
+    var groqModelName by mutableStateOf("llama3-8b-8192")
+    var openRouterModelName by mutableStateOf("google/gemini-2.5-flash")
+
+    // Primary Provider Selection
+    var aiProvider by mutableStateOf("Google Gemini") // Default provider
+    var translationLanguage by mutableStateOf("Spanish")
+
+    // Compatibility properties to avoid breaking other parts of the app
+    val apiKey: String
+        get() = when (aiProvider) {
+            "Google Gemini" -> geminiApiKey
+            "Groq" -> groqApiKey
+            "OpenRouter" -> openRouterApiKey
+            else -> ""
+        }
+    
+    val aiModelName: String
+        get() = when (aiProvider) {
+            "Google Gemini" -> geminiModelName
+            "Groq" -> groqModelName
+            "OpenRouter" -> openRouterModelName
+            else -> ""
+        }
+
     var isApiKeyConfigured by mutableStateOf(false)
     var hasShownApiKeyPromptThisSession = false
-
-    // AI Provider & Model config
-    var aiProvider by mutableStateOf("")
-    var aiModelName by mutableStateOf("")
 
     fun detectProvider(key: String): String = when {
         key.startsWith("AIza") -> "Google Gemini"
@@ -112,32 +151,118 @@ object SettingsState {
 
     fun loadSettings(context: Context) {
         val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        apiKey = prefs.getString("api_key", "") ?: ""
+        
+        val encryptedGemini = prefs.getString("gemini_api_key", "") ?: ""
+        geminiApiKey = com.just_for_fun.fileflip.data.local.EncryptionHelper.decrypt(encryptedGemini)
+        
+        val encryptedGroq = prefs.getString("groq_api_key", "") ?: ""
+        groqApiKey = com.just_for_fun.fileflip.data.local.EncryptionHelper.decrypt(encryptedGroq)
+        
+        val encryptedOpenRouter = prefs.getString("openrouter_api_key", "") ?: ""
+        openRouterApiKey = com.just_for_fun.fileflip.data.local.EncryptionHelper.decrypt(encryptedOpenRouter)
+
+        geminiModelName = prefs.getString("gemini_model_name", "gemini-1.5-flash") ?: "gemini-1.5-flash"
+        groqModelName = prefs.getString("groq_model_name", "llama3-8b-8192") ?: "llama3-8b-8192"
+        openRouterModelName = prefs.getString("openrouter_model_name", "google/gemini-2.5-flash") ?: "google/gemini-2.5-flash"
+
+        aiProvider = prefs.getString("ai_provider", "Google Gemini") ?: "Google Gemini"
+        translationLanguage = prefs.getString("translation_language", "Spanish") ?: "Spanish"
         isApiKeyConfigured = apiKey.isNotEmpty()
-        aiProvider = prefs.getString("ai_provider", "") ?: ""
-        aiModelName = prefs.getString("ai_model_name", "") ?: ""
-        if (aiProvider.isEmpty()) aiProvider = detectProvider(apiKey)
-        if (aiModelName.isEmpty()) aiModelName = suggestModelName(apiKey)
+
+        // Migration check for old simple key
+        val oldKey = prefs.getString("api_key", "") ?: ""
+        if (oldKey.isNotEmpty()) {
+            val decryptedOldKey = com.just_for_fun.fileflip.data.local.EncryptionHelper.decrypt(oldKey).ifEmpty { oldKey }
+            if (decryptedOldKey.isNotEmpty()) {
+                val detected = detectProvider(decryptedOldKey)
+                when (detected) {
+                    "Google Gemini" -> {
+                        geminiApiKey = decryptedOldKey
+                        saveGeminiApiKey(context, decryptedOldKey)
+                    }
+                    "Groq" -> {
+                        groqApiKey = decryptedOldKey
+                        saveGroqApiKey(context, decryptedOldKey)
+                    }
+                    "OpenRouter" -> {
+                        openRouterApiKey = decryptedOldKey
+                        saveOpenRouterApiKey(context, decryptedOldKey)
+                    }
+                }
+                // Clear old plain/encrypted key to finish migration
+                prefs.edit().remove("api_key").apply()
+            }
+        }
     }
 
-    fun saveApiKey(context: Context, key: String) {
-        apiKey = key
-        isApiKeyConfigured = key.isNotEmpty()
-        aiProvider = detectProvider(key)
-        if (aiModelName.isEmpty()) aiModelName = suggestModelName(key)
+    fun saveGeminiApiKey(context: Context, key: String) {
+        geminiApiKey = key
+        isApiKeyConfigured = apiKey.isNotEmpty()
+        val encrypted = com.just_for_fun.fileflip.data.local.EncryptionHelper.encrypt(key)
         context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             .edit()
-            .putString("api_key", key)
-            .putString("ai_provider", aiProvider)
-            .putString("ai_model_name", aiModelName)
+            .putString("gemini_api_key", encrypted)
             .apply()
     }
 
-    fun saveAiModelName(context: Context, modelName: String) {
-        aiModelName = modelName
+    fun saveGroqApiKey(context: Context, key: String) {
+        groqApiKey = key
+        isApiKeyConfigured = apiKey.isNotEmpty()
+        val encrypted = com.just_for_fun.fileflip.data.local.EncryptionHelper.encrypt(key)
         context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             .edit()
-            .putString("ai_model_name", modelName)
+            .putString("groq_api_key", encrypted)
+            .apply()
+    }
+
+    fun saveOpenRouterApiKey(context: Context, key: String) {
+        openRouterApiKey = key
+        isApiKeyConfigured = apiKey.isNotEmpty()
+        val encrypted = com.just_for_fun.fileflip.data.local.EncryptionHelper.encrypt(key)
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("openrouter_api_key", encrypted)
+            .apply()
+    }
+
+    fun saveGeminiModel(context: Context, model: String) {
+        geminiModelName = model
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("gemini_model_name", model)
+            .apply()
+    }
+
+    fun saveGroqModel(context: Context, model: String) {
+        groqModelName = model
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("groq_model_name", model)
+            .apply()
+    }
+
+    fun saveOpenRouterModel(context: Context, model: String) {
+        openRouterModelName = model
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("openrouter_model_name", model)
+            .apply()
+    }
+
+    fun saveAiProvider(context: Context, provider: String) {
+        aiProvider = provider
+        isApiKeyConfigured = apiKey.isNotEmpty()
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("ai_provider", provider)
+            .apply()
+    }
+
+    fun saveTranslationLanguage(context: Context, language: String) {
+        translationLanguage = language
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("translation_language", language)
             .apply()
     }
 }
@@ -156,6 +281,10 @@ private val TextGray: Color @Composable get() = LocalAppColors.current.textSecon
 fun SettingsScreen(navController: NavController) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+    val modelDownloader = remember {
+        val entryPoint = EntryPoints.get(context.applicationContext, SettingsEntryPoint::class.java)
+        entryPoint.modelDownloader()
+    }
 
     LaunchedEffect(Unit) {
         SettingsState.loadSettings(context)
@@ -165,15 +294,25 @@ fun SettingsScreen(navController: NavController) {
     var previewTextSize by remember { mutableFloatStateOf(SettingsState.previewTextSize) }
     var selectedTheme by remember { mutableIntStateOf(ThemeManager.currentThemeIndex) }
     var fontExpanded by remember { mutableStateOf(false) }
-    var apiKeyInput by remember { mutableStateOf(SettingsState.apiKey) }
-    var modelNameInput by remember { mutableStateOf(SettingsState.aiModelName) }
-    val detectedProvider by remember { derivedStateOf { SettingsState.detectProvider(apiKeyInput) } }
-    var apiKeyConfirmed by remember { mutableStateOf(SettingsState.apiKey.isNotEmpty()) }
+    var activeProvider by remember { mutableStateOf(SettingsState.aiProvider) }
 
-    LaunchedEffect(SettingsState.apiKey) {
-        apiKeyInput = SettingsState.apiKey
-        modelNameInput = SettingsState.aiModelName
-        apiKeyConfirmed = SettingsState.apiKey.isNotEmpty()
+    var geminiKeyInput by remember { mutableStateOf(SettingsState.geminiApiKey) }
+    var geminiModelInput by remember { mutableStateOf(SettingsState.geminiModelName) }
+
+    var groqKeyInput by remember { mutableStateOf(SettingsState.groqApiKey) }
+    var groqModelInput by remember { mutableStateOf(SettingsState.groqModelName) }
+
+    var openRouterKeyInput by remember { mutableStateOf(SettingsState.openRouterApiKey) }
+    var openRouterModelInput by remember { mutableStateOf(SettingsState.openRouterModelName) }
+
+    LaunchedEffect(SettingsState.aiProvider, SettingsState.geminiApiKey, SettingsState.groqApiKey, SettingsState.openRouterApiKey) {
+        activeProvider = SettingsState.aiProvider
+        geminiKeyInput = SettingsState.geminiApiKey
+        geminiModelInput = SettingsState.geminiModelName
+        groqKeyInput = SettingsState.groqApiKey
+        groqModelInput = SettingsState.groqModelName
+        openRouterKeyInput = SettingsState.openRouterApiKey
+        openRouterModelInput = SettingsState.openRouterModelName
     }
 
     val directoryPickerLauncher = rememberLauncherForActivityResult(
@@ -357,83 +496,257 @@ fun SettingsScreen(navController: NavController) {
                 SettingsCard {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "AI API Key",
+                            text = "Active AI Provider",
                             color = TextWhite,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = apiKeyInput,
-                            onValueChange = { newValue ->
-                                apiKeyInput = newValue
-                                apiKeyConfirmed = false
-                            },
-                            placeholder = { Text("Enter API Key (e.g., OpenRouter / Groq / Gemini)", color = TextGray) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedBorderColor = PrimaryBlue,
-                                unfocusedBorderColor = BorderColor,
-                                cursorColor = PrimaryBlue
-                            ),
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = {
-                                        if (apiKeyInput.isNotBlank()) {
-                                            SettingsState.saveApiKey(context, apiKeyInput)
-                                            apiKeyConfirmed = true
-                                            modelNameInput = SettingsState.aiModelName
-                                            Toast.makeText(context, "API key saved", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "Please enter an API key first", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                ) {
+                        var providerExpanded by remember { mutableStateOf(false) }
+                        val providersList = listOf("Google Gemini", "Groq", "OpenRouter")
+                        ExposedDropdownMenuBox(
+                            expanded = providerExpanded,
+                            onExpandedChange = { providerExpanded = !providerExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = activeProvider,
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
                                     Icon(
-                                        imageVector = if (apiKeyConfirmed) Icons.Rounded.Check else Icons.Rounded.Check,
-                                        contentDescription = "Confirm API Key",
-                                        tint = if (apiKeyConfirmed) LocalAppColors.current.iconEmerald else TextGray,
-                                        modifier = Modifier.size(24.dp)
+                                        imageVector = if (providerExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.UnfoldMore,
+                                        contentDescription = "Expand Provider Menu",
+                                        tint = TextGray
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextWhite,
+                                    unfocusedTextColor = TextWhite,
+                                    focusedBorderColor = PrimaryBlue,
+                                    unfocusedBorderColor = BorderColor
+                                )
+                            )
+                            ExposedDropdownMenu(
+                                expanded = providerExpanded,
+                                onDismissRequest = { providerExpanded = false },
+                                modifier = Modifier.background(SurfaceDark)
+                            ) {
+                                providersList.forEach { provider ->
+                                    DropdownMenuItem(
+                                        text = { Text(provider, color = TextWhite) },
+                                        onClick = {
+                                            activeProvider = provider
+                                            SettingsState.saveAiProvider(context, provider)
+                                            providerExpanded = false
+                                        },
+                                        colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = TextWhite)
                                     )
                                 }
                             }
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "AI Provider: ${detectedProvider.ifEmpty { "Not detected" }}",
-                            color = if (detectedProvider.isNotEmpty()) PrimaryBlue else TextGray,
-                            fontSize = 13.sp,
+                            text = "Provider API Credentials",
+                            color = TextWhite,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = modelNameInput,
-                            onValueChange = { newValue ->
-                                modelNameInput = newValue
-                                SettingsState.saveAiModelName(context, newValue)
-                            },
-                            placeholder = { Text("Model name (e.g., gemini-1.5-flash)", color = TextGray) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedBorderColor = PrimaryBlue,
-                                unfocusedBorderColor = BorderColor,
-                                cursorColor = PrimaryBlue
-                            )
+                        
+                        // Google Gemini config card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark.copy(alpha = 0.5f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (activeProvider == "Google Gemini") PrimaryBlue.copy(alpha = 0.4f) else BorderColor.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Google Gemini", color = if (activeProvider == "Google Gemini") PrimaryBlue else TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = geminiKeyInput,
+                                    onValueChange = {
+                                        geminiKeyInput = it
+                                        SettingsState.saveGeminiApiKey(context, it)
+                                    },
+                                    placeholder = { Text("Gemini API Key (AIza...)", color = TextGray, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue, unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = geminiModelInput,
+                                    onValueChange = {
+                                        geminiModelInput = it
+                                        SettingsState.saveGeminiModel(context, it)
+                                    },
+                                    placeholder = { Text("Gemini Model (gemini-1.5-flash)", color = TextGray, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue, unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                            }
+                        }
+
+                        // Groq config card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark.copy(alpha = 0.5f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (activeProvider == "Groq") PrimaryBlue.copy(alpha = 0.4f) else BorderColor.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Groq", color = if (activeProvider == "Groq") PrimaryBlue else TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = groqKeyInput,
+                                    onValueChange = {
+                                        groqKeyInput = it
+                                        SettingsState.saveGroqApiKey(context, it)
+                                    },
+                                    placeholder = { Text("Groq API Key (gsk_...)", color = TextGray, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue, unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = groqModelInput,
+                                    onValueChange = {
+                                        groqModelInput = it
+                                        SettingsState.saveGroqModel(context, it)
+                                    },
+                                    placeholder = { Text("Groq Model (llama3-8b-8192)", color = TextGray, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue, unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                            }
+                        }
+
+                        // OpenRouter config card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceDark.copy(alpha = 0.5f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (activeProvider == "OpenRouter") PrimaryBlue.copy(alpha = 0.4f) else BorderColor.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("OpenRouter", color = if (activeProvider == "OpenRouter") PrimaryBlue else TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = openRouterKeyInput,
+                                    onValueChange = {
+                                        openRouterKeyInput = it
+                                        SettingsState.saveOpenRouterApiKey(context, it)
+                                    },
+                                    placeholder = { Text("OpenRouter API Key", color = TextGray, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue, unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = openRouterModelInput,
+                                    onValueChange = {
+                                        openRouterModelInput = it
+                                        SettingsState.saveOpenRouterModel(context, it)
+                                    },
+                                    placeholder = { Text("OpenRouter Model (google/gemini-2.5-flash)", color = TextGray, fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue, unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "AI Translation Target Language",
+                            color = TextWhite,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        
+                        var languageExpanded by remember { mutableStateOf(false) }
+                        val languages = listOf("Spanish", "French", "German", "Hindi", "Japanese", "English")
+                        
+                        ExposedDropdownMenuBox(
+                            expanded = languageExpanded,
+                            onExpandedChange = { languageExpanded = !languageExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = SettingsState.translationLanguage,
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = if (languageExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.UnfoldMore,
+                                        contentDescription = "Expand Language Menu",
+                                        tint = TextGray
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextWhite,
+                                    unfocusedTextColor = TextWhite,
+                                    focusedBorderColor = PrimaryBlue,
+                                    unfocusedBorderColor = BorderColor
+                                )
+                            )
+                            ExposedDropdownMenu(
+                                expanded = languageExpanded,
+                                onDismissRequest = { languageExpanded = false },
+                                modifier = Modifier.background(SurfaceDark)
+                            ) {
+                                languages.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = { Text(lang, color = TextWhite) },
+                                        onClick = {
+                                            SettingsState.saveTranslationLanguage(context, lang)
+                                            languageExpanded = false
+                                        },
+                                        colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = TextWhite)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Configuring an API key enables FlipFile's AI capabilities. Leave empty for offline-only mode.",
+                            text = "Configuring API keys enables FlipFile's AI capabilities. Empty values disable specific providers.",
                             color = TextGray,
                             fontSize = 12.sp
                         )
                     }
                 }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item {
+                LocalAiModelCard(modelDownloader)
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -664,3 +977,142 @@ fun SettingsBottomNavItem(icon: ImageVector, label: String, isSelected: Boolean)
         )
     }
 }
+
+@InstallIn(SingletonComponent::class)
+@EntryPoint
+interface SettingsEntryPoint {
+    fun modelDownloader(): ModelDownloader
+}
+
+@Composable
+fun LocalAiModelCard(modelDownloader: ModelDownloader) {
+    val downloadStatus by modelDownloader.downloadProgress.collectAsState()
+    var isDownloaded by remember { mutableStateOf(modelDownloader.isModelDownloaded()) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(downloadStatus) {
+        isDownloaded = modelDownloader.isModelDownloaded()
+    }
+
+    SettingsCard {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Local AI Model (Optional)",
+                color = TextWhite,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Model Name: all-MiniLM-L6-v2 (Quantized)\n" +
+                       "Model Size: ~23 MB\n" +
+                       "Purpose: Offline-first semantic vector generation for local RAG context.",
+                color = TextGray,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            when (val status = downloadStatus) {
+                is ModelDownloader.DownloadStatus.Downloading -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = PrimaryBlue,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Downloading: ${status.progress}%",
+                                color = PrimaryBlue,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+                is ModelDownloader.DownloadStatus.Failed -> {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Download Failed: ${status.error}",
+                            color = Color(0xFFEF4444),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    modelDownloader.startDownload()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Retry Download", color = BackgroundDark, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                else -> {
+                    if (isDownloaded) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Status: Downloaded & Active",
+                                color = LocalAppColors.current.iconEmerald,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            TextButton(
+                                onClick = {
+                                    modelDownloader.deleteModel()
+                                    isDownloaded = false
+                                }
+                            ) {
+                                Text("Delete Model", color = Color(0xFFEF4444))
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Status: Not Installed",
+                                color = TextGray,
+                                fontSize = 13.sp
+                            )
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        modelDownloader.startDownload()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Download Model", color = BackgroundDark, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -105,6 +105,8 @@ import com.just_for_fun.fileflip.ui.components.dashboard.QuickActionsGrid
 import com.just_for_fun.fileflip.ui.theme.LocalAppColors
 import com.just_for_fun.fileflip.ui.util.copyFileToAppStorage
 import com.just_for_fun.fileflip.ui.util.getFileNameFromUri
+import com.just_for_fun.fileflip.ui.util.getFolderNameFromUri
+
 
 // Colors - theme-aware
 private val PrimaryBlue: Color @Composable get() = LocalAppColors.current.primaryBlue
@@ -183,6 +185,9 @@ fun DashboardScreen(
                 val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+
+                val folderName = getFolderNameFromUri(context, uri) ?: "Imported Folder"
+                viewModel.importFolder(uri.toString(), folderName)
 
                 val encodedFolderUri = java.net.URLEncoder.encode(uri.toString(), "UTF-8")
                 navController.navigate("editor/empty?folder=$encodedFolderUri")

@@ -40,9 +40,12 @@ import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.UnfoldMore
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -103,6 +106,8 @@ import com.just_for_fun.fileflip.domain.model.SearchHighlightTransformation
 import com.just_for_fun.fileflip.ui.components.editor.SearchReplaceBottomSheet
 import com.just_for_fun.fileflip.ui.components.editor.WordCountRow
 import com.just_for_fun.fileflip.ui.theme.LocalAppColors
+import com.just_for_fun.fileflip.ui.util.AudioRecorder
+import com.just_for_fun.fileflip.data.ai.GroqWhisperClient
 import com.just_for_fun.fileflip.ui.util.*
 import com.just_for_fun.fileflip.ui.viewmodels.EditorViewModel
 import kotlinx.coroutines.launch
@@ -140,6 +145,7 @@ fun EditorScreen(
 
     LaunchedEffect(folderUri) {
         if (folderUri != null) {
+            viewModel.setActiveWorkspace(folderUri)
             isLoadingExplorer = true
             Log.d("FileFlip", "EditorScreen: LaunchedEffect START for folderUri = $folderUri")
 
@@ -352,6 +358,11 @@ fun EditorScreen(
         }
     }
 
+    var isRecordingAudio by remember { mutableStateOf(false) }
+    var isTranscribingAudio by remember { mutableStateOf(false) }
+    val audioRecorder = remember { AudioRecorder(context) }
+    var recordedAudioFile by remember { mutableStateOf<java.io.File?>(null) }
+
     // STT configuration
     var onSttResultReceived by remember { mutableStateOf<((String) -> Unit)?>(null) }
     val sttLauncher = rememberLauncherForActivityResult(
@@ -366,18 +377,32 @@ fun EditorScreen(
         }
     }
 
-    val launchSpeechToText = { onResult: (String) -> Unit ->
-        onSttResultReceived = onResult
+    val triggerNativeSpeechRecognizer = { ctx: android.content.Context, launcher: androidx.activity.result.ActivityResultLauncher<android.content.Intent> ->
         try {
             val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
                 putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your prompt...")
             }
-            sttLauncher.launch(intent)
+            launcher.launch(intent)
         } catch (e: Exception) {
             Log.e("FileFlip", "STT not supported on this device", e)
-            android.widget.Toast.makeText(context, "Speech recognizer not available", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(ctx, "Speech recognizer not available", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val launchSpeechToText = { onResult: (String) -> Unit ->
+        onSttResultReceived = onResult
+        val apiKey = SettingsState.apiKey
+        if (apiKey.isNotBlank() && apiKey.startsWith("gsk_")) {
+            val file = audioRecorder.startRecording()
+            if (file != null) {
+                isRecordingAudio = true
+            } else {
+                triggerNativeSpeechRecognizer(context, sttLauncher)
+            }
+        } else {
+            triggerNativeSpeechRecognizer(context, sttLauncher)
         }
     }
 
@@ -1035,27 +1060,65 @@ fun EditorScreen(
                                         shape = RoundedCornerShape(50),
                                         color = PrimaryBlue,
                                         contentColor = Color.White,
-                                        shadowElevation = 8.dp,
-                                        modifier = Modifier.clickable {
-                                            viewModel.sendSelectedTextToAgent(selectedText, textFieldValue.selection)
-                                            scope.launch { rightDrawerState.open() }
-                                        }
+                                        shadowElevation = 8.dp
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.AutoAwesome,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
+                                            Row(
+                                                modifier = Modifier.clickable {
+                                                    viewModel.sendSelectedTextToAgent(selectedText, textFieldValue.selection)
+                                                    scope.launch { rightDrawerState.open() }
+                                                },
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.AutoAwesome,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = "Send to Agent",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+
+                                            // Divider
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(1.dp)
+                                                    .height(16.dp)
+                                                    .background(Color.White.copy(alpha = 0.5f))
                                             )
-                                            Text(
-                                                text = "Send to Agent",
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
+
+                                            Row(
+                                                modifier = Modifier.clickable {
+                                                    android.widget.Toast.makeText(context, "Translating text...", android.widget.Toast.LENGTH_SHORT).show()
+                                                    viewModel.translateAndSpeak(
+                                                        text = selectedText,
+                                                        targetLanguage = SettingsState.translationLanguage
+                                                    ) { translation ->
+                                                        speakText("translation_${System.currentTimeMillis()}", translation)
+                                                    }
+                                                },
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = "Translate & Speak",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1342,6 +1405,75 @@ fun EditorScreen(
                             onReplaceHighlight = { highlight ->
                                 replaceHighlight = highlight
                             }
+                        )
+                    }
+
+                    // Recording & Transcribing Audio Dialogs
+                    if (isRecordingAudio) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = {
+                                audioRecorder.stopRecording()?.delete()
+                                isRecordingAudio = false
+                            },
+                            title = { Text("Voice Input (AI Whisper)", color = TextWhite) },
+                            text = { Text("Recording your audio prompt... Press stop when done.", color = TextGray) },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val file = audioRecorder.stopRecording()
+                                        recordedAudioFile = file
+                                        isRecordingAudio = false
+                                        if (file != null && file.exists()) {
+                                            isTranscribingAudio = true
+                                            scope.launch {
+                                                try {
+                                                    val apiKey = SettingsState.apiKey
+                                                    val text = GroqWhisperClient.transcribe(file, apiKey)
+                                                    if (text.isNotEmpty()) {
+                                                        onSttResultReceived?.invoke(text)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.e("FileFlip", "Whisper failed, falling back to native STT", e)
+                                                    triggerNativeSpeechRecognizer(context, sttLauncher)
+                                                } finally {
+                                                    isTranscribingAudio = false
+                                                    file.delete()
+                                                }
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                                ) {
+                                    Text("Stop & Transcribe", color = BackgroundDark, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        audioRecorder.stopRecording()?.delete()
+                                        isRecordingAudio = false
+                                    }
+                                ) {
+                                    Text("Cancel", color = Color(0xFFEF4444))
+                                }
+                            },
+                            containerColor = SurfaceDark
+                        )
+                    }
+
+                    if (isTranscribingAudio) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = {},
+                            title = { Text("Transcribing Audio", color = TextWhite) },
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(color = PrimaryBlue, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text("AI is processing audio with Whisper...", color = TextGray)
+                                }
+                            },
+                            confirmButton = {},
+                            containerColor = SurfaceDark
                         )
                     }
                 }

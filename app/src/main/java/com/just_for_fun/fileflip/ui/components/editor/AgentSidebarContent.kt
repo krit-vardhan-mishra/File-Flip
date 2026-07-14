@@ -82,6 +82,8 @@ fun AgentSidebarContent(
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
     val agentError by viewModel.agentError.collectAsState()
+    val chatSessions by viewModel.chatSessions.collectAsState()
+    val currentSession by viewModel.currentSession.collectAsState()
 
     var promptInput by remember { mutableStateOf("") }
     var showHistoryOverlay by remember { mutableStateOf(false) }
@@ -98,7 +100,12 @@ fun AgentSidebarContent(
 
     if (showHistoryOverlay) {
         ChatHistoryOverlay(
-            onClose = { showHistoryOverlay = false }
+            sessions = chatSessions,
+            currentSessionId = currentSession?.id,
+            onClose = { showHistoryOverlay = false },
+            onSwitchSession = { viewModel.switchSession(it) },
+            onCreateNew = { viewModel.createNewSession() },
+            onDeleteSession = { viewModel.deleteSession(it) }
         )
     }
 

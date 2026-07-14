@@ -2,6 +2,8 @@ package com.just_for_fun.fileflip.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.just_for_fun.fileflip.data.local.dao.WorkspaceDao
+import com.just_for_fun.fileflip.data.local.entity.WorkspaceEntity
 import com.just_for_fun.fileflip.domain.model.MarkdownFile
 import com.just_for_fun.fileflip.domain.repository.MarkdownRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -9,13 +11,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class FileExplorerViewModel @Inject constructor(
-    private val repository: MarkdownRepository
+    private val repository: MarkdownRepository,
+    private val workspaceDao: WorkspaceDao
 ) : ViewModel() {
+
+    val workspaces: StateFlow<List<WorkspaceEntity>> = workspaceDao.getAllWorkspaces()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     private val _allFiles = MutableStateFlow<List<MarkdownFile>>(emptyList())
     

@@ -16,8 +16,8 @@ android {
         applicationId = "com.just_for_fun.fileflip"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -74,6 +74,10 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.androidx.compose.foundation)
     kapt(libs.hilt.android.compiler)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    kapt(libs.room.compiler)
+    implementation(libs.onnxruntime.android)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtimeCompose)

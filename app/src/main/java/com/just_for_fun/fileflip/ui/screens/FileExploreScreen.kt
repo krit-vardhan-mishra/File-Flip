@@ -141,11 +141,23 @@ fun FilesTabContent(navController: NavController, viewModel: FileExplorerViewMod
     val files by viewModel.filteredFiles.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
     val selectedExtensions by viewModel.selectedExtensions.collectAsState()
+    val workspaces by viewModel.workspaces.collectAsState()
     
     var showSortFilterSheet by remember { mutableStateOf(false) }
     var showFileActionSheet by remember { mutableStateOf(false) }
     var selectedFileForAction by remember { mutableStateOf<MarkdownFile?>(null) }
     var showRenameDialog by remember { mutableStateOf(false) }
+
+    val foldersList = remember(workspaces) {
+        sampleFolders + workspaces.map { ws ->
+            FolderData(
+                name = ws.name,
+                itemCount = 0,
+                date = "Imported",
+                path = ws.rootPath
+            )
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -154,7 +166,7 @@ fun FilesTabContent(navController: NavController, viewModel: FileExplorerViewMod
         item {
             SectionTitle("FOLDERS")
         }
-        items(sampleFolders) { folder ->
+        items(foldersList) { folder ->
             FolderItem(folder, navController)
         }
 
@@ -560,9 +572,14 @@ fun FolderItem(folder: FolderData, navController: NavController) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                when (folder.name) {
-                    "Drafts", "Published" -> navController.navigate("drafts_published")
-                    else -> { }
+                if (folder.path != null) {
+                    val encodedFolderUri = java.net.URLEncoder.encode(folder.path, "UTF-8")
+                    navController.navigate("editor/empty?folder=$encodedFolderUri")
+                } else {
+                    when (folder.name) {
+                        "Drafts", "Published" -> navController.navigate("drafts_published")
+                        else -> { }
+                    }
                 }
             }
             .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -942,9 +959,9 @@ fun SortFilterBottomSheet(
 }
 
 // Data Classes & Mock Data
-data class FolderData(val name: String, val itemCount: Int, val date: String)
+data class FolderData(val name: String, val itemCount: Int, val date: String, val path: String? = null)
 
 private val sampleFolders = listOf(
-    FolderData("Drafts", 4, "Oct 22, 2023"),
-    FolderData("Published", 12, "Yesterday")
+    FolderData("Drafts", 4, "Oct 22, 2023", null),
+    FolderData("Published", 12, "Yesterday", null)
 )

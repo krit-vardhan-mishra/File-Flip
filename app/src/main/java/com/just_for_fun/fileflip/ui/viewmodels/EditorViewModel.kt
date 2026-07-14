@@ -2,22 +2,52 @@ package com.just_for_fun.fileflip.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.just_for_fun.fileflip.data.ai.ProviderFactory
+import com.just_for_fun.fileflip.data.local.entity.ChatMessageEntity
+import com.just_for_fun.fileflip.data.local.entity.ChatSessionEntity
+import com.just_for_fun.fileflip.domain.repository.ChatRepository
 import com.just_for_fun.fileflip.domain.model.MarkdownFile
 import com.just_for_fun.fileflip.domain.repository.MarkdownRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import android.util.Log
 import com.just_for_fun.fileflip.ui.screens.SettingsState
 import java.io.File
+import com.just_for_fun.fileflip.data.local.dao.WorkspaceDao
+import com.just_for_fun.fileflip.data.local.dao.ChunkDao
+import com.just_for_fun.fileflip.data.local.dao.FileDao
+import com.just_for_fun.fileflip.data.local.entity.ChunkEntity
+import com.just_for_fun.fileflip.data.local.util.WorkspaceIndexer
+import com.just_for_fun.fileflip.data.local.util.OnnxEmbeddingGenerator
+import com.just_for_fun.fileflip.data.local.util.SimilaritySearchHelper
+import com.just_for_fun.fileflip.data.local.util.WebSearchHelper
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 
 @HiltViewModel
 class EditorViewModel @Inject constructor(
-    private val repository: MarkdownRepository
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
+    private val repository: MarkdownRepository,
+    private val chatRepository: ChatRepository,
+    private val providerFactory: ProviderFactory,
+    private val workspaceDao: WorkspaceDao,
+    private val chunkDao: ChunkDao,
+    private val fileDao: FileDao,
+    private val workspaceIndexer: WorkspaceIndexer,
+    private val embeddingGenerator: OnnxEmbeddingGenerator
 ) : ViewModel() {
+
+    private val _activeWorkspaceId = MutableStateFlow<String?>(null)
+    val activeWorkspaceId: StateFlow<String?> = _activeWorkspaceId.asStateFlow()
 
     private val _currentFile = MutableStateFlow<MarkdownFile?>(null)
     val currentFile: StateFlow<MarkdownFile?> = _currentFile.asStateFlow()
@@ -45,7 +75,7 @@ class EditorViewModel @Inject constructor(
     private var isUndoRedoOperation = false
     
     // Auto-save functionality
-    private val autoSaveDelayMs = 3000L // 3 seconds
+    private val autoSaveDelayMs = 3000L
     private var autoSaveJob: kotlinx.coroutines.Job? = null
     
     private val _canUndo = MutableStateFlow(false)
@@ -55,18 +85,25 @@ class EditorViewModel @Inject constructor(
     val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
     
     init {
-        // Observe content changes for auto-save
         viewModelScope.launch {
             _content.collect { newContent ->
                 if (!isUndoRedoOperation) {
-                    // Cancel previous auto-save job
                     autoSaveJob?.cancel()
-                    // Schedule new auto-save
                     autoSaveJob = viewModelScope.launch {
                         kotlinx.coroutines.delay(autoSaveDelayMs)
                         saveFile()
                     }
                 }
+            }
+        }
+    }
+
+    fun setActiveWorkspace(folderUri: String) {
+        viewModelScope.launch {
+            val workspace = workspaceDao.getWorkspaceByPath(folderUri)
+            if (workspace != null) {
+                _activeWorkspaceId.value = workspace.id
+                workspaceIndexer.indexWorkspace(workspace.id, workspace.rootPath)
             }
         }
     }
@@ -81,33 +118,27 @@ class EditorViewModel @Inject constructor(
             )
             
             if (file != null) {
-                // Update last modified to mark as recent
                 val updatedFile = file.copy(lastModified = System.currentTimeMillis())
                 repository.saveFile(updatedFile)
 
-                // Check if file is already open
                 val existingIndex = _openFiles.value.indexOfFirst { it.path == updatedFile.path }
                 if (existingIndex >= 0) {
-                    // Update the file in open files list and switch
                     _openFiles.value = _openFiles.value.toMutableList().apply {
                         set(existingIndex, updatedFile)
                     }
                     switchToFile(existingIndex)
                 } else {
-                    // Add new file to open files
                     _openFiles.value = _openFiles.value + updatedFile
                     _currentFileIndex.value = _openFiles.value.size - 1
                     _currentFile.value = updatedFile
                     _content.value = updatedFile.content
 
-                    // Initialize undo/redo stacks for this file
                     undoStacks[updatedFile.path] = mutableListOf()
                     redoStacks[updatedFile.path] = mutableListOf()
                     updateUndoRedoState()
+                    ensureSessionExists(updatedFile.path, updatedFile.name)
                 }
-            }
- else {
-                // File not found - check if it's already open and needs to be removed
+            } else {
                 val existingIndex = _openFiles.value.indexOfFirst { it.path == path }
                 if (existingIndex >= 0) {
                     _fileNotFoundError.value = existingIndex to (File(path).name)
@@ -118,7 +149,6 @@ class EditorViewModel @Inject constructor(
     
     fun switchToFile(index: Int) {
         if (index in _openFiles.value.indices) {
-            // Save current file content before switching
             _currentFile.value?.let { currentFile ->
                 val hasChanges = _content.value != currentFile.content
                 _hasUnsavedChanges.value = _hasUnsavedChanges.value + (currentFile.path to hasChanges)
@@ -126,18 +156,16 @@ class EditorViewModel @Inject constructor(
             
             val newFile = _openFiles.value[index]
             
-            // Check if file still exists on disk
             viewModelScope.launch {
                 val fileExists = File(newFile.path).exists()
                 if (!fileExists) {
-                    // File was deleted
                     _fileNotFoundError.value = index to newFile.name
                 } else {
-                    // Switch to new file
                     _currentFileIndex.value = index
                     _currentFile.value = newFile
                     _content.value = newFile.content
                     updateUndoRedoState()
+                    ensureSessionExists(newFile.path, newFile.name)
                 }
             }
         }
@@ -153,20 +181,16 @@ class EditorViewModel @Inject constructor(
         val fileToClose = _openFiles.value[index]
         val hasChanges = _hasUnsavedChanges.value[fileToClose.path] ?: false
         
-        // If file has unsaved changes and not forcing close, return false (needs confirmation)
         if (hasChanges && !forceClose) {
             return false
         }
         
-        // Remove file from open files
         _openFiles.value = _openFiles.value.filterIndexed { i, _ -> i != index }
         
-        // Clean up undo/redo stacks
         undoStacks.remove(fileToClose.path)
         redoStacks.remove(fileToClose.path)
         _hasUnsavedChanges.value = _hasUnsavedChanges.value - fileToClose.path
         
-        // Update current file index if needed
         if (_openFiles.value.isEmpty()) {
             _currentFileIndex.value = 0
             _currentFile.value = null
@@ -174,7 +198,6 @@ class EditorViewModel @Inject constructor(
         } else if (_currentFileIndex.value >= _openFiles.value.size) {
             switchToFile(_openFiles.value.size - 1)
         } else if (_currentFileIndex.value == index) {
-            // If closing current file, switch to previous or next
             val newIndex = if (index > 0) index - 1 else 0
             switchToFile(newIndex)
         }
@@ -187,19 +210,14 @@ class EditorViewModel @Inject constructor(
             if (index in _openFiles.value.indices) {
                 val fileToClose = _openFiles.value[index]
                 
-                // Switch to the file temporarily to save it
                 val originalIndex = _currentFileIndex.value
                 if (index != originalIndex) {
                     switchToFile(index)
                 }
                 
-                // Save the file
                 saveFile()
-                
-                // Close the file
                 closeFile(index, forceClose = true)
                 
-                // If we had switched files, adjust back
                 if (index < originalIndex) {
                     _currentFileIndex.value = originalIndex - 1
                 }
@@ -211,18 +229,10 @@ class EditorViewModel @Inject constructor(
         val currentFilePath = _currentFile.value?.path ?: return
         
         if (!isUndoRedoOperation && newContent != _content.value) {
-            // Get or create undo stack for this file
             val undoStack = undoStacks.getOrPut(currentFilePath) { mutableListOf() }
-            
-            // Add current content to undo stack before updating
             undoStack.add(_content.value)
-            
-            // Clear redo stack when new content is added
             redoStacks[currentFilePath]?.clear()
-            
-            // Mark file as having unsaved changes
             _hasUnsavedChanges.value = _hasUnsavedChanges.value + (currentFilePath to true)
-            
             updateUndoRedoState()
         }
         _content.value = newContent
@@ -234,16 +244,9 @@ class EditorViewModel @Inject constructor(
         
         if (undoStack.isNotEmpty()) {
             isUndoRedoOperation = true
-            
-            // Get or create redo stack
             val redoStack = redoStacks.getOrPut(currentFilePath) { mutableListOf() }
-            
-            // Push current content to redo stack
             redoStack.add(_content.value)
-            
-            // Pop from undo stack
             _content.value = undoStack.removeLast()
-            
             updateUndoRedoState()
             isUndoRedoOperation = false
         }
@@ -255,16 +258,9 @@ class EditorViewModel @Inject constructor(
         
         if (redoStack.isNotEmpty()) {
             isUndoRedoOperation = true
-            
-            // Get or create undo stack
             val undoStack = undoStacks.getOrPut(currentFilePath) { mutableListOf() }
-            
-            // Push current content to undo stack
             undoStack.add(_content.value)
-            
-            // Pop from redo stack
             _content.value = redoStack.removeLast()
-            
             updateUndoRedoState()
             isUndoRedoOperation = false
         }
@@ -285,7 +281,6 @@ class EditorViewModel @Inject constructor(
                 repository.saveFile(updatedFile)
                 _currentFile.value = updatedFile
                 
-                // Update in open files list
                 val currentIndex = _currentFileIndex.value
                 if (currentIndex in _openFiles.value.indices) {
                     _openFiles.value = _openFiles.value.toMutableList().apply {
@@ -293,7 +288,6 @@ class EditorViewModel @Inject constructor(
                     }
                 }
                 
-                // Mark as saved
                 _hasUnsavedChanges.value = _hasUnsavedChanges.value - file.path
             }
         }
@@ -317,16 +311,15 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             val newFile = repository.createNewFile(name, content)
             
-            // Add to open files and switch to it
             _openFiles.value = _openFiles.value + newFile
             _currentFileIndex.value = _openFiles.value.size - 1
             _currentFile.value = newFile
             _content.value = newFile.content
             
-            // Initialize undo/redo stacks for this file
             undoStacks[newFile.path] = mutableListOf()
             redoStacks[newFile.path] = mutableListOf()
             updateUndoRedoState()
+            ensureSessionExists(newFile.path, newFile.name)
         }
     }
 
@@ -334,16 +327,13 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             val defaultDir = SettingsState.defaultSaveDirectory
             if (defaultDir != null) {
-                // For now, still use app dir, but TODO: implement saving to custom dir
                 val newFile = repository.createNewFile(name, content)
                 
-                // Add to open files and switch to it
                 _openFiles.value = _openFiles.value + newFile
                 _currentFileIndex.value = _openFiles.value.size - 1
                 _currentFile.value = newFile
                 _content.value = newFile.content
                 
-                // Initialize undo/redo stacks for this file
                 undoStacks[newFile.path] = mutableListOf()
                 redoStacks[newFile.path] = mutableListOf()
                 updateUndoRedoState()
@@ -353,9 +343,109 @@ class EditorViewModel @Inject constructor(
         }
     }
 
-    // --- AGENTIC CHAT STATE & LOGIC ---
-    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
-    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+    // --- SESSION MANAGEMENT ---
+    private val _currentSession = MutableStateFlow<ChatSessionEntity?>(null)
+    val currentSession: StateFlow<ChatSessionEntity?> = _currentSession.asStateFlow()
+
+    private val _chatSessions = MutableStateFlow<List<ChatSessionEntity>>(emptyList())
+    val chatSessions: StateFlow<List<ChatSessionEntity>> = _chatSessions.asStateFlow()
+
+    private fun ensureSessionExists(filePath: String, fileName: String) {
+        viewModelScope.launch {
+            chatRepository.getSessionsForFile(filePath).collect { sessions ->
+                _chatSessions.value = sessions
+                if (sessions.isEmpty()) {
+                    val session = chatRepository.createSession(filePath, "Chat - $fileName")
+                    _currentSession.value = session
+                    loadSessionMessages(session.id)
+                } else if (_currentSession.value == null || sessions.none { it.id == _currentSession.value?.id }) {
+                    _currentSession.value = sessions.first()
+                    loadSessionMessages(sessions.first().id)
+                } else {
+                    val stillExists = sessions.any { it.id == _currentSession.value?.id }
+                    if (!stillExists && sessions.isNotEmpty()) {
+                        _currentSession.value = sessions.first()
+                        loadSessionMessages(sessions.first().id)
+                    }
+                }
+            }
+        }
+    }
+
+    fun switchSession(sessionId: String) {
+        viewModelScope.launch {
+            val session = _chatSessions.value.find { it.id == sessionId }
+            if (session != null) {
+                _currentSession.value = session
+                loadSessionMessages(sessionId)
+            }
+        }
+    }
+
+    fun createNewSession() {
+        viewModelScope.launch {
+            val file = _currentFile.value ?: return@launch
+            val session = chatRepository.createSession(file.path, "Chat - ${file.name}")
+            _currentSession.value = session
+            loadSessionMessages(session.id)
+        }
+    }
+
+    fun deleteSession(sessionId: String) {
+        viewModelScope.launch {
+            chatRepository.deleteSession(sessionId)
+            if (_currentSession.value?.id == sessionId) {
+                val sessions = _chatSessions.value.filter { it.id != sessionId }
+                if (sessions.isNotEmpty()) {
+                    _currentSession.value = sessions.first()
+                    loadSessionMessages(sessions.first().id)
+                } else {
+                    _currentSession.value = null
+                    _agentChatMessages.value = emptyList()
+                }
+            }
+        }
+    }
+
+    private fun loadSessionMessages(sessionId: String) {
+        viewModelScope.launch {
+            chatRepository.getMessagesForSession(sessionId).collect { messages ->
+                _agentChatMessages.value = messages
+            }
+        }
+    }
+
+    // --- AGENTIC CHAT STATE ---
+    private val _agentChatMessages = MutableStateFlow<List<ChatMessageEntity>>(emptyList())
+    val agentChatMessages: StateFlow<List<ChatMessageEntity>> = _agentChatMessages.asStateFlow()
+
+    private val _streamingContent = MutableStateFlow<String?>(null)
+    val streamingContent: StateFlow<String?> = _streamingContent.asStateFlow()
+
+    // Combined messages: DB messages + in-progress streaming message
+    val chatMessages: StateFlow<List<ChatMessageEntity>> = combine(
+        _agentChatMessages, _streamingContent
+    ) { messages, streaming ->
+        if (streaming != null) {
+            val list = messages.toMutableList()
+            val idx = list.indexOfLast { it.id == "__streaming__" }
+            if (idx >= 0) {
+                list[idx] = list[idx].copy(content = streaming)
+            } else {
+                list.add(
+                    ChatMessageEntity(
+                        id = "__streaming__",
+                        sessionId = "",
+                        role = "assistant",
+                        content = streaming
+                    )
+                )
+            }
+            list
+        } else {
+            messages.filter { it.id != "__streaming__" }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isAgentLoading = MutableStateFlow(false)
     val isAgentLoading: StateFlow<Boolean> = _isAgentLoading.asStateFlow()
@@ -376,13 +466,16 @@ class EditorViewModel @Inject constructor(
         selectedTextContext = selectedText
         activeSelectionRange = range
         
-        // Add a helper message in chat
-        val userMessage = ChatMessage(
-            id = java.util.UUID.randomUUID().toString(),
-            role = "user",
-            content = "Selected text context:\n```\n$selectedText\n```"
-        )
-        _chatMessages.value = _chatMessages.value + userMessage
+        viewModelScope.launch {
+            val session = _currentSession.value
+            if (session != null) {
+                chatRepository.addMessage(
+                    sessionId = session.id,
+                    role = "user",
+                    content = "Selected text context:\n```\n$selectedText\n```"
+                )
+            }
+        }
     }
 
     fun clearSelectedTextContext() {
@@ -402,32 +495,159 @@ class EditorViewModel @Inject constructor(
     }
 
     fun clearChatHistory() {
-        _chatMessages.value = emptyList()
-        _agentError.value = null
-        clearSelectedTextContext()
+        viewModelScope.launch {
+            val session = _currentSession.value
+            if (session != null) {
+                chatRepository.clearMessagesForSession(session.id)
+            }
+            _streamingContent.value = null
+            _agentError.value = null
+            clearSelectedTextContext()
+        }
+    }
+
+    private fun buildRollingHistory(history: List<ChatMessageEntity>): List<ChatMessageEntity> {
+        val finalHistory = mutableListOf<ChatMessageEntity>()
+        val summaryMessage = history.find { it.role == "system" && it.content.startsWith("SUMMARY OF PREVIOUS CONVERSATION:") }
+        if (summaryMessage != null) {
+            finalHistory.add(summaryMessage)
+        }
+        val recentMessages = history.filter { it.id != summaryMessage?.id }.takeLast(10)
+        finalHistory.addAll(recentMessages)
+        return finalHistory
+    }
+
+    private fun extractSearchQuery(content: String): String? {
+        val cleanContent = content.trim().removeSurrounding("```json", "```").removeSurrounding("```", "```").trim()
+        return try {
+            val json = org.json.JSONObject(cleanContent)
+            if (json.optString("name") == "search_web") {
+                json.optJSONObject("args")?.optString("query")
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            if (content.contains("search_web")) {
+                val queryRegex = """"query"\s*:\s*"([^"]+)"""".toRegex()
+                queryRegex.find(content)?.groupValues?.get(1)
+            } else {
+                null
+            }
+        }
+    }
+
+    private fun summarizeConversationIfNeeded(sessionId: String) {
+        viewModelScope.launch {
+            try {
+                val messages = chatRepository.getMessagesForSession(sessionId).first()
+                if (messages.size > 20) {
+                    val first15 = messages.take(15)
+                    val transcript = first15.joinToString("\n") { "${it.role.uppercase()}: ${it.content}" }
+                    
+                    val provider = providerFactory.getProvider()
+                    val apiKey = providerFactory.getApiKey(provider.providerName())
+                    val modelName = providerFactory.getModelName(provider.providerName()).ifEmpty {
+                        SettingsState.suggestModelName(apiKey)
+                    }
+                    
+                    if (apiKey.isNotEmpty()) {
+                        val systemPrompt = "You are a helper that summarizes chat history. " +
+                                "Summarize the following conversation history into a single concise paragraph. " +
+                                "Keep it focused on the user's goals, key code modifications proposed, and file context. " +
+                                "Output ONLY the summary, no preface or pleasantries."
+                        val userMsg = ChatMessageEntity(
+                            id = java.util.UUID.randomUUID().toString(),
+                            sessionId = "",
+                            role = "user",
+                            content = transcript,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        
+                        val summaryResponse = provider.chat(systemPrompt, listOf(userMsg), apiKey, modelName)
+                        val summaryText = summaryResponse.trim()
+                        
+                        if (summaryText.isNotEmpty()) {
+                            chatRepository.deleteMessages(first15)
+                            chatRepository.addMessage(sessionId, "system", "SUMMARY OF PREVIOUS CONVERSATION:\n$summaryText")
+                            Log.d("FileFlip", "Conversation summarized successfully.")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FileFlip", "Failed to summarize conversation", e)
+            }
+        }
     }
 
     fun sendAgentPrompt(prompt: String) {
         if (prompt.isBlank()) return
         
-        val userMessage = ChatMessage(
-            id = java.util.UUID.randomUUID().toString(),
-            role = "user",
-            content = prompt
-        )
+        val session = _currentSession.value
+        if (session == null) {
+            _agentError.value = "No active chat session. Please open a file first."
+            return
+        }
         
-        _chatMessages.value = _chatMessages.value + userMessage
         _isAgentLoading.value = true
         _agentError.value = null
+        _streamingContent.value = ""
         
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch {
             try {
-                val apiKey = SettingsState.apiKey
-                if (apiKey.isBlank()) {
-                    throw Exception("API Key is missing. Please configure it in Settings.")
+                // RAG Context retrieval
+                val queryEmbedding = if (embeddingGenerator.isModelAvailable()) {
+                    embeddingGenerator.getEmbedding(prompt)
+                } else {
+                    null
                 }
+
+                val activeWsId = _activeWorkspaceId.value
+                val matchingContext = if (queryEmbedding != null && activeWsId != null) {
+                    val files = fileDao.getFilesForWorkspaceSync(activeWsId)
+                    val matches = mutableListOf<Pair<ChunkEntity, Float>>()
+                    for (file in files) {
+                        val chunks = chunkDao.getChunksForFile(file.id)
+                        for (chunk in chunks) {
+                            val chunkVector = SimilaritySearchHelper.toFloatArray(chunk.vectorEmbedding)
+                            val sim = SimilaritySearchHelper.computeCosineSimilarity(queryEmbedding, chunkVector)
+                            if (sim >= 0.35f) {
+                                matches.add(Pair(chunk, sim))
+                            }
+                        }
+                    }
+                    val topMatches = matches.sortedByDescending { it.second }.take(4)
+                    if (topMatches.isNotEmpty()) {
+                        val contextBuilder = StringBuilder("\n--- RELEVANT WORKSPACE CONTEXT ---\n")
+                        contextBuilder.append("Below are context snippets from other files in the workspace that might be relevant to the query:\n\n")
+                        for ((matchChunk, score) in topMatches) {
+                            val matchFile = files.find { it.id == matchChunk.fileId }
+                            val matchFileName = matchFile?.path?.let { Uri.parse(it).path?.substringAfterLast("/") } ?: "unknown"
+                            val fileDoc = DocumentFile.fromTreeUri(context, Uri.parse(matchFile?.path ?: ""))
+                            if (fileDoc != null && fileDoc.exists()) {
+                                val fullText = context.contentResolver.openInputStream(fileDoc.uri)?.use { 
+                                    it.bufferedReader().use { r -> r.readText() } 
+                                } ?: ""
+                                if (matchChunk.startByte >= 0 && matchChunk.endByte <= fullText.length) {
+                                    val snippet = fullText.substring(matchChunk.startByte, matchChunk.endByte).trim()
+                                    contextBuilder.append("Snippet from $matchFileName (Relevance: ${(score * 100).toInt()}%):\n")
+                                    contextBuilder.append("```\n$snippet\n```\n\n")
+                                }
+                            }
+                        }
+                        contextBuilder.toString()
+                    } else {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+
+                chatRepository.addMessage(
+                    sessionId = session.id,
+                    role = "user",
+                    content = prompt
+                )
                 
-                // Get active context
                 val fileName = _currentFile.value?.name ?: "untitled"
                 val fileContent = if (_pendingChanges.value != null) {
                     _pendingChanges.value!!.proposedContent
@@ -445,20 +665,14 @@ class EditorViewModel @Inject constructor(
                     "You have access to the user's current file context.\n" +
                     "Active File: $fileName\n" +
                     "Current Content:\n```\n$fileContent\n```\n" +
-                    "Help the user edit, format, outline, or write code. If you write code, provide it inside standard markdown code blocks."
+                    matchingContext +
+                    "\nHelp the user edit, format, outline, or write code. If you write code, provide it inside standard markdown code blocks."
                 }
                 
-                val responseText = makeApiCall(apiKey, systemPrompt, _chatMessages.value)
-                
-                val assistantMessage = ChatMessage(
-                    id = java.util.UUID.randomUUID().toString(),
-                    role = "assistant",
-                    content = responseText
-                )
-                
-                _chatMessages.value = _chatMessages.value + assistantMessage
+                runAgentLoop(session.id, systemPrompt, matchingContext)
             } catch (e: Exception) {
                 Log.e("FileFlip", "Error in sendAgentPrompt", e)
+                _streamingContent.value = null
                 _agentError.value = e.message ?: "An unknown error occurred"
             } finally {
                 _isAgentLoading.value = false
@@ -466,116 +680,91 @@ class EditorViewModel @Inject constructor(
         }
     }
 
-    private fun makeApiCall(apiKey: String, systemPrompt: String, history: List<ChatMessage>): String {
-        val provider = SettingsState.aiProvider
-        val isGemini = provider == "Google Gemini" || apiKey.startsWith("AIza")
-        val isGroq = provider == "Groq" || apiKey.startsWith("gsk_")
-        val modelName = SettingsState.aiModelName.ifEmpty {
-            SettingsState.suggestModelName(apiKey)
+    private suspend fun runAgentLoop(
+        sessionId: String,
+        systemPrompt: String,
+        matchingContext: String
+    ) {
+        val allMessages = chatRepository.getMessagesForSession(sessionId).first()
+        val rollingMessages = buildRollingHistory(allMessages)
+
+        val finalSystemPrompt = systemPrompt + "\n\n" +
+                "If the user asks about recent events, weather, or topics you lack knowledge of, you must call the web search tool by outputting ONLY this JSON format:\n" +
+                "```json\n" +
+                "{\n" +
+                "  \"name\": \"search_web\",\n" +
+                "  \"args\": {\n" +
+                "    \"query\": \"<search query>\"\n" +
+                "  }\n" +
+                "}\n" +
+                "```\n" +
+                "Do not add any other text around the JSON block when calling the tool."
+
+        var currentProvider = providerFactory.getProvider()
+        var currentApiKey = providerFactory.getApiKey(currentProvider.providerName())
+        var currentModelName = providerFactory.getModelName(currentProvider.providerName()).ifEmpty {
+            SettingsState.suggestModelName(currentApiKey)
         }
-        
-        val baseUrl = when {
-            isGemini -> "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey"
-            isGroq -> "https://api.groq.com/openai/v1/chat/completions"
-            else -> "https://openrouter.ai/api/v1/chat/completions"
+
+        if (currentApiKey.isBlank()) {
+            throw Exception("API Key is missing for ${currentProvider.providerName()}. Please configure it in Settings.")
         }
-        
-        val connection = java.net.URL(baseUrl).openConnection() as java.net.HttpURLConnection
-        connection.requestMethod = "POST"
-        connection.connectTimeout = 15000
-        connection.readTimeout = 15000
-        connection.doOutput = true
-        connection.setRequestProperty("Content-Type", "application/json")
-        
-        if (!isGemini) {
-            connection.setRequestProperty("Authorization", "Bearer $apiKey")
-            connection.setRequestProperty("HTTP-Referer", "https://fileflip.app")
-            connection.setRequestProperty("X-Title", "FileFlip")
-        }
-        
-        // Build JSON body
-        val jsonBody = if (isGemini) {
-            // Gemini Format
-            val contentsArray = StringBuilder()
-            contentsArray.append("{\"role\":\"user\",\"parts\":[{\"text\":\"${escapeJson(systemPrompt)}\"}]},")
-            contentsArray.append("{\"role\":\"model\",\"parts\":[{\"text\":\"Understood. I am ready to help.\"}]},")
-            
-            history.forEachIndexed { index, msg ->
-                val role = if (msg.role == "user") "user" else "model"
-                contentsArray.append("{\"role\":\"$role\",\"parts\":[{\"text\":\"${escapeJson(msg.content)}\"}]}")
-                if (index < history.size - 1) contentsArray.append(",")
-            }
-            "{\"contents\":[$contentsArray]}"
-        } else {
-            // OpenAI Format (OpenRouter / Groq)
-            val messagesArray = StringBuilder()
-            messagesArray.append("{\"role\":\"system\",\"content\":\"${escapeJson(systemPrompt)}\"},")
-            history.forEachIndexed { index, msg ->
-                messagesArray.append("{\"role\":\"${msg.role}\",\"content\":\"${escapeJson(msg.content)}\"}")
-                if (index < history.size - 1) messagesArray.append(",")
-            }
-            "{\"model\":\"$modelName\",\"messages\":[$messagesArray]}"
-        }
-        
-        connection.outputStream.use { os ->
-            os.write(jsonBody.toByteArray(Charsets.UTF_8))
-        }
-        
-        val responseCode = connection.responseCode
-        if (responseCode == java.net.HttpURLConnection.HTTP_OK) {
-            val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-            return parseApiResponse(responseText, isGemini)
-        } else {
-            val errorText = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
-            Log.e("FileFlip", "API request failed: Code $responseCode, Error: $errorText")
-            val parsedError = try {
-                val json = org.json.JSONObject(errorText)
-                if (json.has("error")) {
-                    val errorObj = json.get("error")
-                    if (errorObj is org.json.JSONObject && errorObj.has("message")) {
-                        errorObj.getString("message")
-                    } else if (errorObj is String) {
-                        errorObj
-                    } else {
-                        json.toString()
-                    }
-                } else {
-                    errorText
+
+        val fullResponse = StringBuilder()
+        try {
+            currentProvider.chatStream(finalSystemPrompt, rollingMessages, currentApiKey, currentModelName)
+                .collect { chunk ->
+                    fullResponse.append(chunk)
+                    _streamingContent.value = fullResponse.toString()
                 }
-            } catch (e: Exception) {
-                errorText
-            }
-            throw Exception(parsedError)
-        }
-    }
-
-    private fun parseApiResponse(response: String, isGemini: Boolean): String {
-        return try {
-            val json = org.json.JSONObject(response)
-            if (isGemini) {
-                val candidates = json.getJSONArray("candidates")
-                val firstCandidate = candidates.getJSONObject(0)
-                val content = firstCandidate.getJSONObject("content")
-                val parts = content.getJSONArray("parts")
-                parts.getJSONObject(0).getString("text")
-            } else {
-                val choices = json.getJSONArray("choices")
-                val firstChoice = choices.getJSONObject(0)
-                val message = firstChoice.getJSONObject("message")
-                message.getString("content")
-            }
         } catch (e: Exception) {
-            Log.e("FileFlip", "Error parsing response: $response", e)
-            throw Exception("Failed to parse AI response: ${e.message}")
+            Log.e("FileFlip", "Primary provider ${currentProvider.providerName()} failed, retrying fallback...", e)
+            val fallback = providerFactory.getFallbackProvider(currentProvider.providerName())
+            if (fallback != null) {
+                val fallbackKey = providerFactory.getApiKey(fallback.providerName())
+                val fallbackModel = providerFactory.getModelName(fallback.providerName()).ifEmpty {
+                    SettingsState.suggestModelName(fallbackKey)
+                }
+                if (fallbackKey.isNotEmpty()) {
+                    fullResponse.clear()
+                    _streamingContent.value = "⚠️ Primary provider failed. Retrying with ${fallback.providerName()}..."
+                    
+                    fallback.chatStream(finalSystemPrompt, rollingMessages, fallbackKey, fallbackModel)
+                        .collect { chunk ->
+                            if (fullResponse.isEmpty()) {
+                                _streamingContent.value = "" // clear warning
+                            }
+                            fullResponse.append(chunk)
+                            _streamingContent.value = fullResponse.toString()
+                        }
+                } else {
+                    throw e
+                }
+            } else {
+                throw e
+            }
         }
-    }
 
-    private fun escapeJson(text: String): String {
-        return text.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
+        _streamingContent.value = null
+        val responseText = fullResponse.toString()
+        chatRepository.addMessage(sessionId, "assistant", responseText)
+
+        val searchQuery = extractSearchQuery(responseText)
+        if (searchQuery != null && searchQuery.isNotBlank()) {
+            // Display searching status
+            _streamingContent.value = "🔍 Searching the web for \"$searchQuery\"..."
+            val searchResults = com.just_for_fun.fileflip.data.local.util.WebSearchHelper.search(searchQuery)
+            
+            // Save search results as user message
+            chatRepository.addMessage(sessionId, "user", "Web search results for \"$searchQuery\":\n\n$searchResults")
+            
+            _streamingContent.value = null
+            // Loop again
+            runAgentLoop(sessionId, systemPrompt, matchingContext)
+        } else {
+            // Completed normally, check summarization
+            summarizeConversationIfNeeded(sessionId)
+        }
     }
 
     fun applyCodePatchToEditor(codeBlock: String, selectionRange: androidx.compose.ui.text.TextRange? = null) {
@@ -598,6 +787,52 @@ class EditorViewModel @Inject constructor(
             selectionRange = targetRange
         )
     }
+
+    private val _isTranslating = MutableStateFlow(false)
+    val isTranslating: StateFlow<Boolean> = _isTranslating.asStateFlow()
+
+    fun translateAndSpeak(text: String, targetLanguage: String, speakTextCallback: (String) -> Unit) {
+        val apiKey = SettingsState.apiKey
+        if (apiKey.isBlank()) {
+            _agentError.value = "API Key is missing for translation."
+            return
+        }
+
+        _isTranslating.value = true
+        viewModelScope.launch {
+            try {
+                val systemPrompt = "You are a professional translator. Translate the user's text into $targetLanguage. " +
+                        "Return ONLY the translated text. Do not add any greetings, markdown formatting, quotes, or explanations."
+                val userMessage = ChatMessageEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    sessionId = "",
+                    role = "user",
+                    content = text,
+                    timestamp = System.currentTimeMillis()
+                )
+                
+                val provider = providerFactory.getProvider()
+                val modelName = SettingsState.aiModelName.ifEmpty {
+                    SettingsState.suggestModelName(apiKey)
+                }
+
+                val fullResponse = StringBuilder()
+                provider.chatStream(systemPrompt, listOf(userMessage), apiKey, modelName)
+                    .collect { chunk ->
+                        fullResponse.append(chunk)
+                    }
+
+                val translation = fullResponse.toString().trim()
+                if (translation.isNotEmpty()) {
+                    speakTextCallback(translation)
+                }
+            } catch (e: Exception) {
+                Log.e("FileFlip", "Translation failed", e)
+            } finally {
+                _isTranslating.value = false
+            }
+        }
+    }
 }
 
 data class PendingChanges(
@@ -605,10 +840,3 @@ data class PendingChanges(
     val proposedContent: String,
     val selectionRange: androidx.compose.ui.text.TextRange?
 )
-
-data class ChatMessage(
-    val id: String,
-    val role: String, // "user" or "assistant"
-    val content: String,
-    val timestamp: Long = System.currentTimeMillis()
-)
