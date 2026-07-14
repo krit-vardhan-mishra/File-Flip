@@ -30,12 +30,17 @@ FileFlip is an offline-first Android app for editing, previewing and exporting t
 
 **Key features**
 - **Offline first**: All editing, previewing and export happens locally — no internet required.
+- **AI Agent Integration**: Selection-aware text editing, explanations, formatting, and translation powered by LLMs.
+- **Keystore Credential Encryption**: Secure Android KeyStore AES-CBC-PKCS7 encryption for Gemini, Groq, and OpenRouter API credentials in `SharedPreferences`.
+- **Multi-Provider Fallback**: Intelligent failover/rate-limit recovery that automatically reroutes LLM payloads to secondary providers.
+- **Optimized Chat Memory**: Context-efficient rolling window of the last 10 messages with background summarization for chats exceeding 20 messages.
+- **Autonomous Web Search**: Custom zero-dependency tool calling loop that fetches real-world DuckDuckGo search context for time-sensitive queries.
 - **Multi-format support**: .md, .json, .yaml, .xml, .txt, .html, .log, .csv (rendered appropriately: HTML/WebView, tables for CSV, tree view for JSON/YAML, etc.).
 - **Editor**: Syntax highlighting, line numbers, tabbed file UI, selection-aware formatting tools and cursor-aware insertions.
 - **Preview**: Dedicated preview screen accessible from the FAB; live sync with editor for Markdown and other formats.
 - **Export**: Professional GitHub-styled PDF export via Android PrintManager / PdfDocument.
 - **File management**: Create, open, save, rename, delete files using Android system picker and app storage.
-- **Architecture**: MVVM + Clean Architecture, Hilt DI, Kotlin Coroutines.
+- **Architecture**: MVVM + Clean Architecture, Hilt Room Database, Dagger Hilt DI, Kotlin Coroutines & Flows.
 
 **How it works (functioning & workflow)**
 - Open or create a text file from the dashboard or top toolbar.
